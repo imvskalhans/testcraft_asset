@@ -1,0 +1,75 @@
+{
+  "title": "TestCraft Setup Guide",
+  "summary": "Teams configure one file — no code changes. Copy application-local.properties.example and fill in your Jira, Zephyr, and AI credentials.",
+  "configFile": "testcraft/backend/src/main/resources/application-local.properties",
+  "templateFile": "testcraft/backend/src/main/resources/application-local.properties.example",
+  "frontendEnvFile": "testcraft/frontend/.env",
+  "steps": [
+    {
+      "order": 1,
+      "title": "Copy backend config template",
+      "command": "cp testcraft/backend/src/main/resources/application-local.properties.example testcraft/backend/src/main/resources/application-local.properties"
+    },
+    {
+      "order": 2,
+      "title": "Set Jira credentials",
+      "details": "jira.base-url, jira.username, jira.api-token from Atlassian API tokens page"
+    },
+    {
+      "order": 3,
+      "title": "Set Zephyr Scale token",
+      "details": "zephyr.scale-cloud-api-token from Jira → Apps → Zephyr Scale → API Access Tokens. EU sites: zephyr.scale-cloud-base-url=https://eu.api.zephyrscale.smartbear.com/v2"
+    },
+    {
+      "order": 4,
+      "title": "Set default project",
+      "details": "zephyr.default-project-key and zephyr.default-project-id for your Jira project"
+    },
+    {
+      "order": 5,
+      "title": "Configure AI (optional)",
+      "details": "ai.provider=mock for demo, or openai/azure-gateway with API keys"
+    },
+    {
+      "order": 6,
+      "title": "Start backend",
+      "command": "cd testcraft/backend && mvn spring-boot:run"
+    },
+    {
+      "order": 7,
+      "title": "Start frontend",
+      "command": "cd testcraft/frontend && npm install && npm run dev"
+    },
+    {
+      "order": 8,
+      "title": "Verify connections",
+      "details": "Open Settings → Test connections. Jira should show connected; Zephyr Scale JWT should show configured."
+    }
+  ],
+  "propertyGroups": [
+    {
+      "name": "Jira",
+      "prefix": "jira.",
+      "keys": ["base-url", "username", "api-token", "custom-fields.acceptance-criteria", "custom-fields.linked-stories"]
+    },
+    {
+      "name": "Zephyr",
+      "prefix": "zephyr.",
+      "keys": ["provider", "default-project-key", "default-project-id", "scale-cloud-api-token", "scale-cloud-base-url", "known-folders", "default-test-case-status", "default-priority"]
+    },
+    {
+      "name": "AI",
+      "prefix": "ai.",
+      "keys": ["provider", "openai.api-key", "openai.model", "azure.gateway-url", "azure.api-key"]
+    },
+    {
+      "name": "App",
+      "prefix": "testcraft.",
+      "keys": ["default-owner", "cors-origins", "comment-author"]
+    }
+  ],
+  "links": [
+    { "label": "Atlassian API tokens", "url": "https://id.atlassian.com/manage-profile/security/api-tokens" },
+    { "label": "Zephyr Scale API docs", "url": "https://support.smartbear.com/zephyr-scale-cloud/api-docs/" }
+  ]
+}

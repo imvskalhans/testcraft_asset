@@ -1,0 +1,12 @@
+export const NAV_ITEMS = [
+  { id: "story", label: "Jira Story", subtitle: "Pull a Jira issue and optionally post a QA comment." },
+  { id: "generate", label: "Generate Tests", subtitle: "Choose how many cases you need — presets or a custom number such as 1." },
+  { id: "publish", label: "Publish & Link", subtitle: "Review generated cases, choose a Zephyr folder, publish, then link to Jira stories." },
+  { id: "release", label: "Test Cycles", subtitle: "Fetch existing cycles first, then create the types you need, then link to Jira/Zephyr." },
+  { id: "ai", label: "AI Actions", subtitle: "Fetch the Jira issue first, then run one AI action at a time." },
+  { id: "settings", label: "Settings", subtitle: "Verify connections and view setup instructions." },
+];
+
+export function getNavItem(id) {
+  return NAV_ITEMS.find((n) => n.id === id) ?? NAV_ITEMS[0];
+}
