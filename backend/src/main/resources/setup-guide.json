@@ -28,7 +28,7 @@
     {
       "order": 5,
       "title": "Configure AI (optional)",
-      "details": "ai.provider=mock for demo, or openai/azure-gateway with API keys"
+      "details": "ai.provider=gemini for the demo, or mock/groq/openai/azure-gateway with the corresponding API keys"
     },
     {
       "order": 6,
@@ -60,7 +60,7 @@
     {
       "name": "AI",
       "prefix": "ai.",
-      "keys": ["provider", "openai.api-key", "openai.model", "azure.gateway-url", "azure.api-key"]
+      "keys": ["provider", "gemini.api-key", "gemini.model", "openai.api-key", "openai.model", "azure.gateway-url", "azure.api-key", "groq.api-key", "groq.model"]
     },
     {
       "name": "App",

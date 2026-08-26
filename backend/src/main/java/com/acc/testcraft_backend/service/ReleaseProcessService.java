@@ -5,6 +5,7 @@ import com.acc.testcraft_backend.client.ZephyrClient;
 import com.acc.testcraft_backend.config.AppProperties;
 import com.acc.testcraft_backend.config.JiraProperties;
 import com.acc.testcraft_backend.model.CreateTestCyclesResponse;
+import com.acc.testcraft_backend.model.CreatedCycleSummary;
 import com.acc.testcraft_backend.model.LinkedStory;
 import com.acc.testcraft_backend.model.ReleaseProcess;
 import com.acc.testcraft_backend.model.StoryTestCycle;
@@ -140,10 +141,18 @@ public class ReleaseProcessService {
             }
 
             List<String> createdIds = new ArrayList<>();
+            List<CreatedCycleSummary> createdCycles = new ArrayList<>();
+            int newlyCreated = 0;
+            int reused = 0;
             int processed = 0;
 
             for (String type : types) {
                 for (LinkedStory story : stories) {
+                    String storySummary = story.getSummary() != null ? story.getSummary() : story.getKey();
+                    String folderPath = java.time.Year.now().getValue() + " / "
+                            + java.time.LocalDate.now().format(
+                                    java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale.ENGLISH))
+                            + " / " + story.getKey() + " - " + storySummary + " - " + type;
                     int folderId = release.getFolderId();
 
                     if (createFolders || folderId <= 0) {
@@ -180,33 +189,47 @@ public class ReleaseProcessService {
                                 owner,
                                 null
                         );
+                        newlyCreated++;
+                    } else {
+                        reused++;
                     }
 
                     if (cycleId != null && !cycleId.isBlank()) {
                         createdIds.add(cycleId);
+                        createdCycles.add(new CreatedCycleSummary(
+                                cycleId,
+                                cycleName,
+                                story.getKey(),
+                                jiraProperties.getBaseUrl().replaceAll("/$", "")
+                                        + "/browse/" + story.getKey(),
+                                jiraProperties.getBaseUrl().replaceAll("/$", "")
+                                        + "/plugins/servlet/ac/com.kanoah.test-manager/main-project-page",
+                                folderPath,
+                                existingId == null || existingId.isBlank() ? "CREATED" : "REUSED"
+                        ));
 
-                        List<Integer> testCaseIds =
-                                zephyrClient.getTestCaseIdsLinkedToIssue(story.getKey());
+                        if (!zephyrClient.isScaleCloudMode()) {
+                            List<Integer> testCaseIds =
+                                    zephyrClient.getTestCaseIdsLinkedToIssue(story.getKey());
+                            if (!testCaseIds.isEmpty()) {
+                                zephyrClient.addTestCasesToCycle(
+                                        cycleId,
+                                        testCaseIds,
+                                        release.getProductVersionId(),
+                                        owner
+                                );
+                            }
 
-                        if (!testCaseIds.isEmpty()) {
-                            zephyrClient.addTestCasesToCycle(
+                            String storyNumericId = story.getId();
+                            if (storyNumericId == null || storyNumericId.isBlank()) {
+                                storyNumericId = jiraClient.getIssueId(story.getKey());
+                            }
+                            zephyrClient.ensureTestRunHasTraceLinks(
                                     cycleId,
-                                    testCaseIds,
-                                    release.getProductVersionId(),
-                                    owner
+                                    release.getCrId(),
+                                    storyNumericId
                             );
                         }
-
-                        String storyNumericId = story.getId();
-                        if (storyNumericId == null || storyNumericId.isBlank()) {
-                            storyNumericId = jiraClient.getIssueId(story.getKey());
-                        }
-
-                        zephyrClient.ensureTestRunHasTraceLinks(
-                                cycleId,
-                                release.getCrId(),
-                                storyNumericId
-                        );
                     }
 
                     processed++;
@@ -217,9 +240,11 @@ public class ReleaseProcessService {
             response.setStoriesProcessed(processed);
             response.setCyclesCreated(createdIds.size());
             response.setCreatedCycleIds(createdIds);
+            response.setCreatedCycles(createdCycles);
             response.setMessage(
-                    "Processed " + processed + " story/type combinations, created/found "
-                            + createdIds.size() + " test cycles (" + String.join(", ", types) + ")"
+                    "Processed " + processed + " story/type combinations: "
+                            + newlyCreated + " created, " + reused + " skipped/reused ("
+                            + String.join(", ", types) + ")"
             );
             return response;
         } catch (Exception e) {

@@ -111,6 +111,19 @@ public class ZephyrService {
         String resolvedOwner = resolveOwner(owner);
         lastResolvedOwner = resolvedOwner;
 
+        // Scale Cloud accepts statusName/priorityName directly. The numeric
+        // status and priority endpoints below belong to the Jira-plugin API.
+        if (zephyrProperties.useScaleCloudApi() && zephyrProperties.hasScaleCloudToken()) {
+            return zephyrClient.postTestCase(
+                    testCase,
+                    projectId,
+                    folderId,
+                    resolvedOwner,
+                    null,
+                    null
+            );
+        }
+
         String resolvedStatusId = statusId;
         if (resolvedStatusId == null || resolvedStatusId.isBlank()) {
             resolvedStatusId = zephyrClient.getStatusIdByName(

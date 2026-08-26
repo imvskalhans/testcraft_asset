@@ -54,7 +54,19 @@ export default function ReleasePage() {
           ))}
         </div>
         <Button primary disabled={loading || !cycleFetch} onClick={createCycles}>Create selected cycle types</Button>
-        {cyclesCreated && <p style={{ fontSize: 12, marginTop: 10 }}>{cyclesCreated.message}</p>}
+        {cyclesCreated && (
+          <div style={{ fontSize: 12, marginTop: 10 }}>
+            <p>{cyclesCreated.message}</p>
+            {(cyclesCreated.createdCycles ?? []).map((cycle) => (
+              <div key={cycle.id} style={{ borderTop: `1px solid ${colors.border}`, padding: "8px 0" }}>
+                <strong>{cycle.name}</strong> · {cycle.action || "—"}<br />
+                Cycle ID: <code>{cycle.id}</code> · Story: {cycle.storyKey} ·{" "}
+                <a href={cycle.zephyrUrl} target="_blank" rel="noreferrer">Open Zephyr Test Cycles</a>{" "}
+                <a href={cycle.jiraUrl} target="_blank" rel="noreferrer">Open Jira story</a>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
       <Card title="Link test cases, stories, and change tickets" step={3}>
         <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>

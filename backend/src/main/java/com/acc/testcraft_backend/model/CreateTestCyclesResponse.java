@@ -10,6 +10,7 @@ public class CreateTestCyclesResponse {
     private int cyclesCreated;
     private int storiesProcessed;
     private List<String> createdCycleIds = new ArrayList<>();
+    private List<CreatedCycleSummary> createdCycles = new ArrayList<>();
     private String message;
     private String error;
 
@@ -51,6 +52,14 @@ public class CreateTestCyclesResponse {
 
     public void setCreatedCycleIds(List<String> createdCycleIds) {
         this.createdCycleIds = createdCycleIds;
+    }
+
+    public List<CreatedCycleSummary> getCreatedCycles() {
+        return createdCycles;
+    }
+
+    public void setCreatedCycles(List<CreatedCycleSummary> createdCycles) {
+        this.createdCycles = createdCycles;
     }
 
     public String getMessage() {

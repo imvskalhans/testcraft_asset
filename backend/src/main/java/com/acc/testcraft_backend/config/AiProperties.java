@@ -4,16 +4,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * AI provider settings — configure in application-local.properties.
- * Supported providers: mock, azure-gateway, openai
+ * Supported providers: mock, azure-gateway, openai, gemini, groq
  */
 @ConfigurationProperties(prefix = "ai")
 public class AiProperties {
 
-    /** mock | azure-gateway | openai */
+    /** mock | azure-gateway | openai | gemini | groq */
     private String provider = "mock";
 
     private Azure azure = new Azure();
     private OpenAi openai = new OpenAi();
+    private Gemini gemini = new Gemini();
+    private Groq groq = new Groq();
     private double temperature = 0.7;
     private double frequencyPenalty = 0.0;
     private double presencePenalty = 0.0;
@@ -31,6 +33,14 @@ public class AiProperties {
         return "openai".equalsIgnoreCase(provider);
     }
 
+    public boolean isGemini() {
+        return "gemini".equalsIgnoreCase(provider);
+    }
+
+    public boolean isGroq() {
+        return "groq".equalsIgnoreCase(provider);
+    }
+
     public boolean isConfigured() {
         if (isMockMode()) {
             return false;
@@ -40,6 +50,12 @@ public class AiProperties {
         }
         if (isOpenAi()) {
             return openai.isConfigured();
+        }
+        if (isGemini()) {
+            return gemini.isConfigured();
+        }
+        if (isGroq()) {
+            return groq.isConfigured();
         }
         return false;
     }
@@ -66,6 +82,22 @@ public class AiProperties {
 
     public void setOpenai(OpenAi openai) {
         this.openai = openai;
+    }
+
+    public Gemini getGemini() {
+        return gemini;
+    }
+
+    public void setGemini(Gemini gemini) {
+        this.gemini = gemini;
+    }
+
+    public Groq getGroq() {
+        return groq;
+    }
+
+    public void setGroq(Groq groq) {
+        this.groq = groq;
     }
 
     public double getTemperature() {
@@ -240,5 +272,39 @@ public class AiProperties {
         public void setMaxTokens(int maxTokens) {
             this.maxTokens = maxTokens;
         }
+    }
+
+    public static class Gemini {
+        private String baseUrl = "https://generativelanguage.googleapis.com/v1beta";
+        private String apiKey = "";
+        private String model = "gemini-3-flash-preview";
+        private int maxTokens = 4096;
+
+        public boolean isConfigured() { return apiKey != null && !apiKey.isBlank(); }
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public String getApiKey() { return apiKey; }
+        public void setApiKey(String apiKey) { this.apiKey = apiKey; }
+        public String getModel() { return model; }
+        public void setModel(String model) { this.model = model; }
+        public int getMaxTokens() { return maxTokens; }
+        public void setMaxTokens(int maxTokens) { this.maxTokens = maxTokens; }
+    }
+
+    public static class Groq {
+        private String baseUrl = "https://api.groq.com/openai/v1";
+        private String apiKey = "";
+        private String model = "llama-3.3-70b-versatile";
+        private int maxTokens = 4096;
+
+        public boolean isConfigured() { return apiKey != null && !apiKey.isBlank(); }
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public String getApiKey() { return apiKey; }
+        public void setApiKey(String apiKey) { this.apiKey = apiKey; }
+        public String getModel() { return model; }
+        public void setModel(String model) { this.model = model; }
+        public int getMaxTokens() { return maxTokens; }
+        public void setMaxTokens(int maxTokens) { this.maxTokens = maxTokens; }
     }
 }
