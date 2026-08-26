@@ -54,7 +54,9 @@ zephyr.known-folders=Test Folder:123456,Demo Folder:123457
 ### AI (optional)
 
 ```properties
-ai.provider=mock          # mock | openai | azure-gateway
+ai.provider=gemini        # mock | gemini | groq | openai | azure-gateway
+ai.gemini.api-key=...
+ai.gemini.model=gemini-3.7-flash
 ai.openai.api-key=...
 ai.openai.model=gpt-4o-mini
 ```

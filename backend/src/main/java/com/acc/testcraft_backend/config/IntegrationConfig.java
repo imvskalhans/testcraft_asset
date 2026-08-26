@@ -6,8 +6,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestTemplate;
+import com.acc.testcraft_backend.client.AiClient;
+import com.acc.testcraft_backend.client.AzureOpenAiClient;
+import com.acc.testcraft_backend.client.GeminiClient;
+import com.acc.testcraft_backend.client.GroqClient;
+import com.acc.testcraft_backend.client.MockAiClient;
+import com.acc.testcraft_backend.client.OpenAiCompatibleClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Base64;
+import java.util.Locale;
 
 @Configuration
 @EnableConfigurationProperties({
@@ -21,6 +29,22 @@ public class IntegrationConfig {
     @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate();
+    }
+
+    @Bean
+    public AiClient aiClient(AiProperties properties, RestTemplate restTemplate, ObjectMapper objectMapper) {
+        return switch (properties.getProvider().toLowerCase(Locale.ROOT)) {
+            case "mock" -> new MockAiClient();
+            case "gemini" -> new GeminiClient(restTemplate, objectMapper, properties);
+            case "groq" -> new GroqClient(properties, restTemplate);
+            case "openai" -> new OpenAiCompatibleClient(restTemplate, objectMapper, "openai",
+                    properties.getOpenai().getBaseUrl().replaceAll("/$", "") + "/chat/completions",
+                    properties.getOpenai().getApiKey(), properties.getOpenai().getModel(),
+                    properties.getOpenai().getMaxTokens(), properties);
+            case "azure-gateway", "azure" -> new AzureOpenAiClient(restTemplate, objectMapper, properties);
+            default -> throw new IllegalStateException("Unsupported ai.provider: " + properties.getProvider()
+                    + ". Supported providers: mock, gemini, openai, azure-gateway, groq");
+        };
     }
 
     @Bean

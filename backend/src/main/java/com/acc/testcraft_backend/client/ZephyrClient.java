@@ -104,6 +104,10 @@ public class ZephyrClient {
         return lastFolderWarning;
     }
 
+    public boolean isScaleCloudMode() {
+        return zephyrProperties.useScaleCloudApi() && zephyrProperties.hasScaleCloudToken();
+    }
+
     @SuppressWarnings("unchecked")
     public Map<String, String> getProjectFolders(String projectId) {
         Map<String, String> folderMap = new LinkedHashMap<>();
@@ -321,6 +325,11 @@ public class ZephyrClient {
 
     @SuppressWarnings("unchecked")
     private Map<String, String> getScaleCloudFolders(String projectKey) {
+        return getScaleCloudFolders(projectKey, "TEST_CASE");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> getScaleCloudFolders(String projectKey, String folderType) {
         Map<String, Object> byId = new LinkedHashMap<>();
         int startAt = 0;
         int maxResults = 100;
@@ -334,7 +343,7 @@ public class ZephyrClient {
                     + startAt
                     + "&projectKey="
                     + projectKey
-                    + "&folderType=TEST_CASE";
+                    + "&folderType=" + folderType;
 
             ResponseEntity<Map> response = restTemplate.exchange(
                     url,
@@ -375,14 +384,61 @@ public class ZephyrClient {
         Map<String, String> folderMap = new LinkedHashMap<>();
         for (Map.Entry<String, Object> entry : byId.entrySet()) {
             Map<String, Object> folder = (Map<String, Object>) entry.getValue();
-            String name = folder.get("name") != null
-                    ? String.valueOf(folder.get("name"))
-                    : folderPath(folder, byId);
+            String name = folderPath(folder, byId);
             if (name != null && !name.isBlank()) {
                 folderMap.put(name, entry.getKey());
             }
         }
         return folderMap;
+    }
+
+    private int ensureScaleCloudFolder(
+            String projectKey,
+            String folderName,
+            String parentId,
+            Map<String, String> folders
+    ) {
+        String expectedPath = parentId == null || parentId.isBlank()
+                ? folderName
+                : folders.entrySet().stream()
+                        .filter(entry -> entry.getValue().equals(parentId))
+                        .map(Map.Entry::getKey)
+                        .findFirst()
+                        .map(parentPath -> parentPath + " / " + folderName)
+                        .orElse(folderName);
+
+        for (Map.Entry<String, String> entry : folders.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(expectedPath)) {
+                return Integer.parseInt(entry.getValue());
+            }
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("projectKey", projectKey);
+        payload.put("name", folderName);
+        payload.put("folderType", "TEST_CYCLE");
+        if (parentId != null && !parentId.isBlank()) {
+            payload.put("parentId", Long.parseLong(parentId));
+        }
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    scaleCloudBaseUrl() + "/folders",
+                    HttpMethod.POST,
+                    new HttpEntity<>(objectMapper.writeValueAsString(payload), authSupport.scaleCloudHeaders()),
+                    Map.class
+            );
+            Map body = response.getBody();
+            if (body != null && body.get("id") != null) {
+                String id = String.valueOf(body.get("id"));
+                folders.put(expectedPath, id);
+                return Integer.parseInt(id);
+            }
+            throw new RuntimeException("Zephyr Scale Cloud did not return a folder ID");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create Scale Cloud cycle folder '"
+                    + folderName + "': " + e.getMessage(), e);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -706,6 +762,21 @@ public class ZephyrClient {
         );
         if (ownerKey != null && !ownerKey.isBlank()) {
             payload.put("ownerId", ownerKey);
+        }
+        if (testCase.getSteps() != null && !testCase.getSteps().isEmpty()) {
+            Map<String, Object> testScript = new LinkedHashMap<>();
+            testScript.put("type", "STEP_BY_STEP");
+            List<Map<String, Object>> scriptSteps = new ArrayList<>();
+            for (String step : testCase.getSteps()) {
+                Map<String, Object> scriptStep = new LinkedHashMap<>();
+                scriptStep.put("description", step != null ? step : "");
+                scriptStep.put("testData", "");
+                scriptStep.put("expectedResult", testCase.getExpectedResult() != null
+                        ? testCase.getExpectedResult() : "");
+                scriptSteps.add(scriptStep);
+            }
+            testScript.put("steps", scriptSteps);
+            payload.put("testScript", testScript);
         }
 
         String url = scaleCloudBaseUrl() + "/testcases";
@@ -1042,6 +1113,14 @@ public class ZephyrClient {
         }
 
         try {
+            if (isScaleCloudMode()) {
+                String projectKey = projectKeyFromIssue(issueKey);
+                List<TestCycle> cycles = listScaleCloudTestCycles(projectKey);
+                return cycles.stream()
+                        .filter(cycle -> cycle.getName() != null
+                                && cycle.getName().toUpperCase().startsWith(issueKey.toUpperCase() + " -"))
+                        .toList();
+            }
             return jiraClient.getTestRunsLinkedToIssue(issueKey);
         } catch (Exception e) {
             System.err.println(
@@ -1060,6 +1139,10 @@ public class ZephyrClient {
             String owner,
             String statusId
     ) {
+        if (zephyrProperties.useScaleCloudApi() && zephyrProperties.hasScaleCloudToken()) {
+            return createScaleCloudTestCycle(name, description, folderId, projectId, owner);
+        }
+
         String url = zephyrProperties.resolveApiBase(jiraProperties)
                 + "/testrun";
 
@@ -1139,6 +1222,57 @@ public class ZephyrClient {
             );
             e.printStackTrace();
             return null;
+        }
+    }
+
+    private String createScaleCloudTestCycle(
+            String name,
+            String description,
+            int folderId,
+            int projectId,
+            String owner
+    ) {
+        String projectKey = jiraClient.resolveProjectKey(String.valueOf(projectId));
+        if (projectKey == null || projectKey.isBlank()) {
+            projectKey = zephyrProperties.getDefaultProjectKey();
+        }
+        if (projectKey == null || projectKey.isBlank()) {
+            throw new IllegalStateException("A Zephyr Scale project key is required to create a test cycle");
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("projectKey", projectKey);
+        payload.put("name", name);
+        payload.put("description", description != null ? description : "");
+        payload.put("plannedStartDate", java.time.Instant.now().toString());
+        payload.put("plannedEndDate", java.time.Instant.now().toString());
+        if (folderId > 0) {
+            payload.put("folderId", folderId);
+        }
+        if (owner != null && !owner.isBlank()) {
+            payload.put("ownerId", owner);
+        }
+
+        String url = scaleCloudBaseUrl() + "/testcycles";
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(
+                            objectMapper.writeValueAsString(payload),
+                            authSupport.scaleCloudHeaders()),
+                    Map.class
+            );
+            Map body = response.getBody();
+            if (body != null && body.get("id") != null) {
+                String id = String.valueOf(body.get("id"));
+                System.out.println("Test cycle created in Zephyr Scale Cloud: " + name + " (ID: " + id + ")");
+                return id;
+            }
+            throw new RuntimeException("Zephyr Scale Cloud did not return a test cycle ID");
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Failed to create test cycle in Zephyr Scale Cloud: " + e.getMessage(), e);
         }
     }
 
@@ -1728,6 +1862,14 @@ public class ZephyrClient {
             int folderId
     ) {
         try {
+            if (isScaleCloudMode()) {
+                String projectKey = projectKeyFromIssue(cycleName);
+                return listScaleCloudTestCycles(projectKey).stream()
+                        .filter(cycle -> cycleName.equals(cycle.getName()))
+                        .map(TestCycle::getId)
+                        .findFirst()
+                        .orElse(null);
+            }
             String tql = "testRun.projectId IN (" + projectId + ") "
                     + "AND testRun.folderTreeId IN (" + folderId + ") "
                     + "ORDER BY testRun.name ASC";
@@ -1799,6 +1941,17 @@ public class ZephyrClient {
             e.printStackTrace();
             return null;
         }
+    }
+
+    private String projectKeyFromIssue(String issueKey) {
+        if (issueKey != null) {
+            int separator = issueKey.indexOf('-');
+            if (separator > 0) {
+                return issueKey.substring(0, separator).toUpperCase();
+            }
+        }
+        String configured = zephyrProperties.getDefaultProjectKey();
+        return configured != null ? configured : "";
     }
 
     public int createFolder(
@@ -1963,6 +2116,23 @@ public class ZephyrClient {
             String cycleType,
             String owner
     ) {
+        if (zephyrProperties.useScaleCloudApi() && zephyrProperties.hasScaleCloudToken()) {
+            String projectKey = jiraClient.resolveProjectKey(String.valueOf(projectId));
+            if (projectKey == null || projectKey.isBlank()) {
+                projectKey = zephyrProperties.getDefaultProjectKey();
+            }
+            String year = String.valueOf(java.time.Year.now().getValue());
+            String month = java.time.LocalDate.now().format(
+                    java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale.ENGLISH));
+            String ticket = sanitizeFolderName(crKey.trim() + " - " + crSummary.trim()
+                    + " - " + (cycleType == null || cycleType.isBlank() ? "Functional" : cycleType.trim()));
+
+            Map<String, String> folders = getScaleCloudFolders(projectKey, "TEST_CYCLE");
+            int yearId = ensureScaleCloudFolder(projectKey, year, null, folders);
+            int monthId = ensureScaleCloudFolder(projectKey, month, String.valueOf(yearId), folders);
+            return ensureScaleCloudFolder(projectKey, ticket, String.valueOf(monthId), folders);
+        }
+
         try {
             validateFolderHierarchyInput(
                     projectId,
