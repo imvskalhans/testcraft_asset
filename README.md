@@ -194,3 +194,40 @@ cd frontend && npm run dev
 - Rotate credentials if they appear in source control, logs, screenshots, or chat.
 - The frontend receives status, project IDs, and account IDs, but not API secrets.
 - All external API calls and credentials are handled by the backend.
+
+## Free demo deployment with Render
+
+The repository includes [`render.yaml`](render.yaml), which defines a free Render static site for the frontend and a free Render web service for the Spring Boot backend. The backend runs in [`backend/Dockerfile`](backend/Dockerfile).
+
+### Deploy
+
+1. Push this repository to GitHub or GitLab. Do not commit `application-local.properties` or any token.
+2. Create a Render account at [render.com](https://render.com) and choose **New → Blueprint**.
+3. Connect the repository and select the branch to deploy.
+4. Render reads `render.yaml` and creates `testcraft-api` and `testcraft-ui`.
+5. In the `testcraft-api` service, fill the variables marked **sync: false**:
+   - Jira URL, username, and API token (or bearer token)
+   - Zephyr Scale token
+   - Zephyr project key and numeric project ID
+   - Optional AI key if changing `AI_PROVIDER` from `mock`
+6. Deploy/redeploy the backend, then deploy the frontend.
+7. Open `https://testcraft-ui.onrender.com` and verify **Settings**.
+
+If you rename either Render service, update both `VITE_API_URL` on the static site and `TESTCRAFT_CORS_ORIGINS` on the backend to the resulting public URLs. For an EU Zephyr tenant, change `ZEPHYR_SCALECLOUDBASEURL` to `https://eu.api.zephyrscale.smartbear.com/v2`.
+
+### Free-tier expectations
+
+- The backend may sleep after inactivity; the first request can take a short time while it wakes.
+- Free services have limited CPU, memory, and monthly usage, so this is appropriate for demos rather than production.
+- The backend is the only service that stores/uses credentials. Never put integration secrets in the frontend environment.
+- Jira and Zephyr API usage, AI usage, and their account permissions are separate from Render's free hosting.
+
+### Render troubleshooting
+
+| Symptom | Check |
+|---|---|
+| Frontend cannot reach API | Confirm `VITE_API_URL` points to the public `testcraft-api` URL and redeploy the frontend. |
+| CORS error | Set `TESTCRAFT_CORS_ORIGINS` to the exact public frontend URL, including `https://`, then redeploy the backend. |
+| API container fails | Open Render logs and confirm the Docker build completed and Java started on port 8080. |
+| Jira/Zephyr not connected | Check the backend environment variables and regional Zephyr URL. |
+| First request is slow | The free backend was sleeping; retry after it wakes. |
