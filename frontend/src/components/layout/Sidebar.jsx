@@ -53,7 +53,10 @@ export default function Sidebar({ page, onNavigate, currentUser }) {
               fontSize: 13,
             }}
           >
-            {n.label}
+              <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                {n.label}
+                {n.status && <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 5px", borderRadius: 5, background: "#FFF3D6", color: "#8A5A00" }}>{n.status}</span>}
+              </span>
           </div>
         ))}
       </nav>

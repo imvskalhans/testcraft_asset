@@ -6,6 +6,8 @@ import PublishPage from "./pages/PublishPage";
 import ReleasePage from "./pages/ReleasePage";
 import AiPage from "./pages/AiPage";
 import SettingsPage from "./pages/SettingsPage";
+import PRReviewPage from "./pages/PRReviewPage";
+import JenkinsLogPage from "./pages/JenkinsLogPage";
 
 function AppRouter() {
   const { page, navigate, currentUser, error, success, loading } = useApp();
@@ -16,6 +18,8 @@ function AppRouter() {
     publish: <PublishPage />,
     release: <ReleasePage />,
     ai: <AiPage />,
+    "pr-review": <PRReviewPage />,
+    "jenkins-log": <JenkinsLogPage />,
     settings: <SettingsPage />,
   };
 

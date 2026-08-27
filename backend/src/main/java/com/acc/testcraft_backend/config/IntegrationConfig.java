@@ -22,7 +22,9 @@ import java.util.Locale;
         JiraProperties.class,
         ZephyrProperties.class,
         AiProperties.class,
-        AppProperties.class
+        AppProperties.class,
+        CodeHostProperties.class,
+        JenkinsProperties.class
 })
 public class IntegrationConfig {
 

@@ -66,6 +66,11 @@
       "name": "App",
       "prefix": "testcraft.",
       "keys": ["default-owner", "cors-origins", "comment-author"]
+    },
+    {
+      "name": "Code review and Jenkins",
+      "prefix": "code-host./jenkins.",
+      "keys": ["code-host.github.token", "code-host.bitbucket.token", "code-host.bitbucket.username", "code-host.bitbucket.app-password", "jenkins.base-url", "jenkins.username", "jenkins.api-token"]
     }
   ],
   "links": [
