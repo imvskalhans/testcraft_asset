@@ -35,6 +35,7 @@ public class JiraClient {
     private final AppProperties appProperties;
     private final IntegrationAuthSupport authSupport;
     private final IntegrationUrls urls;
+    private volatile String resolvedAcceptanceCriteriaField;
 
     public JiraClient(
             RestTemplate restTemplate,
@@ -60,7 +61,8 @@ public class JiraClient {
     public JiraStory fetchIssue(String issueKey) {
         String url = jiraProperties.getBaseUrl().replaceAll("/$", "") + jiraProperties.getApiPath()
                 + "/issue/"
-                + issueKey;
+                + issueKey
+                + "?fields=*all";
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(
@@ -92,8 +94,7 @@ public class JiraClient {
             story.setPriority(nestedName(fields, "priority"));
             story.setIssueType(nestedName(fields, "issuetype"));
 
-            String acceptanceField =
-                    jiraProperties.getCustomFields().getAcceptanceCriteria();
+            String acceptanceField = resolveAcceptanceCriteriaField();
             if (acceptanceField != null && !acceptanceField.isBlank()) {
                 story.setAcceptanceCriteria(jiraText(fields.get(acceptanceField)));
             }
@@ -111,6 +112,9 @@ public class JiraClient {
             if (commentData != null) {
                 story.setComments(extractComments(commentData));
             }
+            if (story.getComments().isEmpty()) {
+                story.setComments(fetchComments(issueKey));
+            }
 
             return story;
         } catch (HttpClientErrorException.NotFound e) {
@@ -124,6 +128,61 @@ public class JiraClient {
                     "Error fetching issue from Jira: " + e.getMessage(),
                     e
             );
+        }
+    }
+
+    /**
+     * Jira does not expose custom-field names in an issue payload. Resolve
+     * the configured field when available, otherwise find the field whose
+     * Jira name is Acceptance Criteria.
+     */
+    @SuppressWarnings("unchecked")
+    private String resolveAcceptanceCriteriaField() {
+        String configured = jiraProperties.getCustomFields().getAcceptanceCriteria();
+        if (configured != null && !configured.isBlank()) {
+            return configured.trim();
+        }
+        if (resolvedAcceptanceCriteriaField != null) {
+            return resolvedAcceptanceCriteriaField;
+        }
+
+        try {
+            String url = jiraProperties.getBaseUrl().replaceAll("/$", "")
+                    + jiraProperties.getApiPath() + "/field";
+            ResponseEntity<List> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authHeaders()), List.class);
+            if (response.getBody() != null) {
+                for (Object item : response.getBody()) {
+                    if (item instanceof Map<?, ?> field) {
+                        Object name = field.get("name");
+                        Object id = field.get("id");
+                        if (name != null && id != null
+                                && "acceptance criteria".equalsIgnoreCase(name.toString().trim())) {
+                            resolvedAcceptanceCriteriaField = id.toString();
+                            return resolvedAcceptanceCriteriaField;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Could not resolve Jira Acceptance Criteria field: " + e.getMessage());
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<JiraStory.Comment> fetchComments(String issueKey) {
+        try {
+            String url = jiraProperties.getBaseUrl().replaceAll("/$", "")
+                    + jiraProperties.getApiPath() + "/issue/" + issueKey + "/comment";
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authHeaders()), Map.class);
+            return response.getBody() == null
+                    ? new ArrayList<>()
+                    : extractComments(response.getBody());
+        } catch (Exception e) {
+            System.err.println("Could not fetch Jira comments for " + issueKey + ": " + e.getMessage());
+            return new ArrayList<>();
         }
     }
 

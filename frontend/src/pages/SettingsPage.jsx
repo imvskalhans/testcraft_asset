@@ -73,7 +73,7 @@ export default function SettingsPage() {
           Jira shows project keys (for example, <strong>KAN</strong>), while Zephyr setup also needs the numeric project ID. Enter the Jira key to look it up automatically.
         </p>
         <div style={{ display: "flex", gap: 8 }}>
-          <input aria-label="Jira project key" style={{ ...inputStyle, flex: 1 }} value={projectKey} onChange={(e) => setProjectKey(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && findProject()} placeholder="KAN" />
+          <input aria-label="Jira project key" style={{ ...inputStyle, flex: 1 }} value={projectKey} onChange={(e) => setProjectKey(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && findProject()} placeholder="Enter a Jira project key, e.g. KAN" />
           <Button primary disabled={projectLoading || !projectKey.trim()} onClick={findProject}>{projectLoading ? "Looking up…" : "Find project"}</Button>
         </div>
         {projectError && <div style={{ marginTop: 10 }}><Alert>{projectError}</Alert></div>}
@@ -95,7 +95,24 @@ export default function SettingsPage() {
         <p style={{ fontSize: 12, lineHeight: 1.7 }}>
           <strong>{currentUser?.displayName || "Unknown"}</strong><br />
           {currentUser?.emailAddress}<br />
-          Owner id: {owner || "—"}
+          <span className="owner-id-label">
+            Owner ID: {owner || "—"}
+            <span className="owner-id-tooltip">Jira account identifier used to assign Zephyr ownership.</span>
+          </span>
+        </p>
+      </Card>
+      <Card title="Setup checklist">
+        <div style={{ display: "grid", gap: 8, fontSize: 12 }}>
+          <div><strong>Jira:</strong> {configStatus?.jira?.connected ? "✓ Connected" : "○ Connect Jira and verify credentials"}</div>
+          <div><strong>Zephyr:</strong> {configStatus?.zephyr?.configured ? "✓ Configured" : "○ Configure the provider and API token"}</div>
+          <div><strong>Project:</strong> {configStatus?.zephyr?.defaultProjectKey
+            ? `✓ ${configStatus.zephyr.defaultProjectKey} (${configStatus.zephyr.defaultProjectId || "project ID missing"})`
+            : "○ Set the default project key and numeric project ID"}</div>
+          <div><strong>Folders:</strong> Select a project on Publish & Link and confirm folders load before publishing.</div>
+          <div><strong>AI:</strong> {configStatus?.ai?.mockMode ? "Using mock mode — configure an AI provider for live generation" : "Ready for test generation"}</div>
+        </div>
+        <p style={{ color: colors.muted, fontSize: 11, lineHeight: 1.5, margin: "10px 0 0" }}>
+          This page intentionally shows connection state, URLs, project IDs, and account IDs only. Secrets are used by the backend and are never rendered in the UI.
         </p>
       </Card>
       <Card title="Connection status">

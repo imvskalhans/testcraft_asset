@@ -9,6 +9,7 @@ public class PublishTestCaseResponse {
     private String folderId;
     private String owner;
     private String status;
+    private String testCaseUrl;
     private String error;
 
     public PublishTestCaseResponse() {
@@ -73,6 +74,14 @@ public class PublishTestCaseResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getTestCaseUrl() {
+        return testCaseUrl;
+    }
+
+    public void setTestCaseUrl(String testCaseUrl) {
+        this.testCaseUrl = testCaseUrl;
     }
 
     public String getError() {

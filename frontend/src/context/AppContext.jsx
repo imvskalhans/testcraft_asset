@@ -30,6 +30,7 @@ export function AppProvider({ children }) {
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedFolder, setSelectedFolder] = useState("");
   const [projectError, setProjectError] = useState(null);
+  const [folderError, setFolderError] = useState(null);
   const [folderWarning, setFolderWarning] = useState(null);
 
   const [crKey, setCrKey] = useState("KAN-1");
@@ -37,10 +38,13 @@ export function AppProvider({ children }) {
   const [release, setRelease] = useState(null);
   const [cycleFetch, setCycleFetch] = useState(null);
   const [cyclesCreated, setCyclesCreated] = useState(null);
+  const [cycleCreateMessage, setCycleCreateMessage] = useState(null);
+  const [cycleLinkMessage, setCycleLinkMessage] = useState(null);
   const [releaseAi, setReleaseAi] = useState(null);
   const [aiActions, setAiActions] = useState([]);
 
   const [publishedKeys, setPublishedKeys] = useState([]);
+  const [publishedTestCaseLinks, setPublishedTestCaseLinks] = useState([]);
   const [linkIssueKeys, setLinkIssueKeys] = useState("");
   const [cycleLinkKeys, setCycleLinkKeys] = useState("");
 
@@ -119,6 +123,7 @@ export function AppProvider({ children }) {
       .then((res) => {
         const map = res.projects ?? {};
         if (!res.success && res.error) setProjectError(res.error);
+        if (res.success && !Object.keys(map).length) setProjectError("No projects found");
         setProjects(map);
         const ids = Object.values(map);
         if (ids.length > 0) setSelectedProject((current) => current || ids[0]);
@@ -135,12 +140,14 @@ export function AppProvider({ children }) {
       .then((res) => {
         const map = res.folders ?? {};
         setFolders(map);
-        setFolderWarning(res.warning || (!Object.keys(map).length ? res.error : null));
+        setFolderError(!res.success ? (res.error || "Unable to resolve project folders") : null);
+        setFolderWarning(res.success ? (res.warning || (!Object.keys(map).length ? "No folders found for this project" : null)) : null);
         setSelectedFolder(Object.values(map)[0] ?? "");
       })
       .catch((e) => {
         setFolders({});
-        setFolderWarning(e.message);
+        setFolderError(e.message || "Unable to resolve project folders");
+        setFolderWarning(null);
       });
   }, [selectedProject]);
 
@@ -226,6 +233,7 @@ export function AppProvider({ children }) {
     if (!selectedFolder) throw new Error("Select a folder");
 
     const published = [];
+    const publishedLinks = [];
     for (const tc of testCases) {
       const res = await api.zephyr.publish({
         testCase: tc,
@@ -234,9 +242,13 @@ export function AppProvider({ children }) {
         owner,
         statusId: "",
       });
-      if (res.testCaseKey) published.push(res.testCaseKey);
+      if (res.testCaseKey) {
+        published.push(res.testCaseKey);
+        publishedLinks.push({ key: res.testCaseKey, url: res.testCaseUrl });
+      }
     }
     setPublishedKeys(published);
+    setPublishedTestCaseLinks(publishedLinks);
     setLinkIssueKeys((current) => current || issueKey);
     setPublishMessage({ type: "success", text: `Published ${published.length} test case(s): ${published.join(", ")}.` });
     setSuccess(`Published ${published.length} test case(s): ${published.join(", ")}. Link them to stories next.`);
@@ -254,6 +266,14 @@ export function AppProvider({ children }) {
   }, (e) => setLinkMessage({ type: "error", text: e.message }));
 
   const fetchCycles = () => run(async () => {
+    // A new fetch starts a new cycle workflow. Do not leave results or
+    // controls from the previously selected story visible.
+    setRelease(null);
+    setCycleFetch(null);
+    setCyclesCreated(null);
+    setCycleCreateMessage(null);
+    setCycleLinkMessage(null);
+    setCycleLinkKeys("");
     const cr = await api.release.fetchCr(crKey);
     setRelease(cr);
     const cycles = await api.release.getTestCycles(crKey);
@@ -264,14 +284,16 @@ export function AppProvider({ children }) {
   });
 
   const createCycles = () => run(async () => {
+    setCycleCreateMessage(null);
     if (!cycleFetch) throw new Error("Fetch test cycles first");
     if (!cycleTypes.length) throw new Error("Select at least one cycle type");
-    const data = await api.release.createTestCycles(crKey, true, cycleTypes, owner);
+    const data = await api.release.createTestCycles(crKey, true, cycleTypes, owner, publishedKeys);
     setCyclesCreated(data);
-    setSuccess(data.message ?? `Created ${data.cyclesCreated} cycle(s)`);
-  });
+    setCycleCreateMessage({ type: "success", text: data.message ?? `Created ${data.cyclesCreated} cycle(s)` });
+  }, (e) => setCycleCreateMessage({ type: "error", text: e.message }));
 
   const linkCycles = () => run(async () => {
+    setCycleLinkMessage(null);
     if (!cyclesCreated) throw new Error("Create test cycles first");
     const keys = cycleLinkKeys.split(/[,\s]+/).map((k) => k.trim()).filter(Boolean);
     if (!keys.length) throw new Error("Enter story / change-ticket keys to link");
@@ -286,15 +308,17 @@ export function AppProvider({ children }) {
     });
     const unique = [...new Set([...publishedKeys, ...testKeys])];
     if (!unique.length) {
-      setSuccess(`No published test case keys found yet. Stories/CRs noted: ${keys.join(", ")}. Publish tests first, then link.`);
+      setCycleLinkMessage({
+        type: "info",
+        text: `No published test case keys found yet. Stories/CRs noted: ${keys.join(", ")}. Publish tests first, then link.`,
+      });
       return;
     }
     const res = await api.zephyr.linkBulk(unique, keys);
     if (res.errors?.length && !res.linked?.length) throw new Error(res.errors.join("; "));
-    if (res.errors?.length) setLinkMessage({ type: "error", text: `Some links need attention: ${res.errors.join("; ")}` });
-    else setLinkMessage({ type: "success", text: `Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.` });
-    setSuccess(`Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.`);
-  }, (e) => setLinkMessage({ type: "error", text: e.message }));
+    if (res.errors?.length) setCycleLinkMessage({ type: "error", text: `Some links need attention: ${res.errors.join("; ")}` });
+    else setCycleLinkMessage({ type: "success", text: `Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.` });
+  }, (e) => setCycleLinkMessage({ type: "error", text: e.message }));
 
   const releaseAiRun = (actionId) => run(async () => {
     if (actionId === "story-review") {
@@ -340,10 +364,13 @@ export function AppProvider({ children }) {
     projects, folders, selectedProject, setSelectedProject,
     selectedFolder, setSelectedFolder,
     projectError, folderWarning,
+    folderError,
     crKey, setCrKey,
     cycleTypes, toggleCycleType,
     release, cycleFetch, cyclesCreated,
+    cycleCreateMessage, cycleLinkMessage,
     publishedKeys, linkIssueKeys, setLinkIssueKeys,
+    publishedTestCaseLinks,
     cycleLinkKeys, setCycleLinkKeys,
     connStatus, configStatus, currentUser,
     setupGuide, showSetupGuide, setShowSetupGuide,

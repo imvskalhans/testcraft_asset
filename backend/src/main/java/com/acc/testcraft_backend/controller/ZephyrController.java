@@ -210,6 +210,8 @@ public class ZephyrController {
             response.setFolderId(request.getFolderId());
             response.setOwner(resolvedOwner);
             response.setStatus("Published");
+            response.setTestCaseUrl(
+                    zephyrService.getTestCaseUiUrl(testCaseKey));
 
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {

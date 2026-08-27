@@ -166,11 +166,9 @@ public class ZephyrClient {
                             + "Check zephyr.scale-cloud-api-token and EU base URL if live sync fails.";
         }
         if (folderMap.isEmpty()) {
-            throw new RuntimeException(
-                    lastFolderWarning.isBlank()
-                            ? "No Zephyr folders found for this project"
-                            : lastFolderWarning
-            );
+            if (lastFolderWarning.isBlank()) {
+                lastFolderWarning = "No folders found for this project";
+            }
         }
         return folderMap;
     }
@@ -763,23 +761,6 @@ public class ZephyrClient {
         if (ownerKey != null && !ownerKey.isBlank()) {
             payload.put("ownerId", ownerKey);
         }
-        if (testCase.getSteps() != null && !testCase.getSteps().isEmpty()) {
-            Map<String, Object> testScript = new LinkedHashMap<>();
-            testScript.put("type", "STEP_BY_STEP");
-            List<Map<String, Object>> scriptSteps = new ArrayList<>();
-            for (String step : testCase.getSteps()) {
-                Map<String, Object> scriptStep = new LinkedHashMap<>();
-                scriptStep.put("index", scriptSteps.size());
-                scriptStep.put("description", step != null ? step : "");
-                scriptStep.put("testData", "");
-                scriptStep.put("expectedResult", testCase.getExpectedResult() != null
-                        ? testCase.getExpectedResult() : "");
-                scriptSteps.add(scriptStep);
-            }
-            testScript.put("steps", scriptSteps);
-            payload.put("testScript", testScript);
-        }
-
         String url = scaleCloudBaseUrl() + "/testcases";
         try {
             ResponseEntity<Map> response = restTemplate.exchange(
@@ -789,11 +770,63 @@ public class ZephyrClient {
                     Map.class
             );
             if (response.getBody() != null && response.getBody().get("key") != null) {
-                return String.valueOf(response.getBody().get("key"));
+                String testCaseKey = String.valueOf(response.getBody().get("key"));
+                postScaleCloudTestSteps(testCaseKey, testCase);
+                return testCaseKey;
             }
             throw new RuntimeException("Scale Cloud did not return a test case key");
         } catch (Exception e) {
             throw new RuntimeException("Failed to publish test case to Zephyr Scale Cloud: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Zephyr's Cloud API creates the test case and its step-by-step script
+     * through separate endpoints. The test-case create payload deliberately
+     * does not contain testScript; steps must be posted as inline items.
+     */
+    private void postScaleCloudTestSteps(
+            String testCaseKey,
+            TestCase testCase
+    ) {
+        try {
+            List<Map<String, Object>> items = new ArrayList<>();
+            String expectedResult = testCase.getExpectedResult() == null
+                    ? ""
+                    : testCase.getExpectedResult();
+            for (String rawStep : testCase.getSteps()) {
+                if (rawStep == null || rawStep.isBlank()) {
+                    continue;
+                }
+                Map<String, Object> inline = new LinkedHashMap<>();
+                inline.put("description", rawStep.trim());
+                inline.put("testData", "");
+                inline.put("expectedResult", expectedResult);
+
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("inline", inline);
+                items.add(item);
+            }
+
+            Map<String, Object> requestBody = new LinkedHashMap<>();
+            requestBody.put("mode", "OVERWRITE");
+            requestBody.put("items", items);
+
+            restTemplate.exchange(
+                    scaleCloudBaseUrl() + "/testcases/" + testCaseKey + "/teststeps",
+                    HttpMethod.POST,
+                    new HttpEntity<>(
+                            objectMapper.writeValueAsString(requestBody),
+                            authSupport.scaleCloudHeaders()),
+                    Map.class
+            );
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Test case " + testCaseKey
+                            + " was created, but its test steps could not be saved: "
+                            + e.getMessage(),
+                    e
+            );
         }
     }
 
@@ -1008,7 +1041,9 @@ public class ZephyrClient {
                 );
             }
 
-            linkTestIdToJiraStory(testCaseId, issueId);
+            // A Zephyr trace link is the bidirectional association: the same
+            // record appears from both the test case and Jira issue sides.
+            ensureTestCaseLinkedToIssue(Integer.parseInt(testCaseId), issueId);
         } catch (Exception e) {
             throw new RuntimeException(
                     "Failed to link test case to issue: " + e.getMessage(),
@@ -1266,9 +1301,11 @@ public class ZephyrClient {
             );
             Map body = response.getBody();
             if (body != null && body.get("id") != null) {
-                String id = String.valueOf(body.get("id"));
-                System.out.println("Test cycle created in Zephyr Scale Cloud: " + name + " (ID: " + id + ")");
-                return id;
+                String cycleKey = body.get("key") != null
+                        ? String.valueOf(body.get("key"))
+                        : String.valueOf(body.get("id"));
+                System.out.println("Test cycle created in Zephyr Scale Cloud: " + name + " (Key: " + cycleKey + ")");
+                return cycleKey;
             }
             throw new RuntimeException("Zephyr Scale Cloud did not return a test cycle ID");
         } catch (Exception e) {
@@ -1356,6 +1393,105 @@ public class ZephyrClient {
             e.printStackTrace();
             return false;
         }
+    }
+
+    /** Attach a test case to a Scale Cloud cycle by creating its execution. */
+    public void addTestCaseToScaleCloudCycle(
+            String cycleKey,
+            String projectKey,
+            String testCaseKey
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("projectKey", projectKey);
+        payload.put("testCycleKey", cycleKey);
+        payload.put("testCaseKey", testCaseKey);
+        payload.put("statusName", "Not Executed");
+
+        try {
+            restTemplate.exchange(
+                    scaleCloudBaseUrl() + "/testexecutions",
+                    HttpMethod.POST,
+                    new HttpEntity<>(objectMapper.writeValueAsString(payload),
+                            authSupport.scaleCloudHeaders()),
+                    Map.class
+            );
+        } catch (Exception e) {
+            String message = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+            if (!message.contains("already") && !message.contains("duplicate")) {
+                throw new RuntimeException(
+                        "Failed to attach " + testCaseKey + " to cycle " + cycleKey
+                                + ": " + e.getMessage(), e);
+            }
+        }
+    }
+
+    /** Link a Scale Cloud cycle to a Jira issue for cycle traceability. */
+    public void linkScaleCloudCycleToIssue(String cycleKey, String issueKey) {
+        String issueId = jiraClient.getIssueId(issueKey);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("issueId", Long.parseLong(issueId));
+        try {
+            restTemplate.exchange(
+                    scaleCloudBaseUrl() + "/testcycles/" + cycleKey + "/links/issues",
+                    HttpMethod.POST,
+                    new HttpEntity<>(objectMapper.writeValueAsString(payload),
+                            authSupport.scaleCloudHeaders()),
+                    Map.class
+            );
+        } catch (Exception e) {
+            String message = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+            if (!message.contains("already") && !message.contains("duplicate")) {
+                throw new RuntimeException(
+                        "Failed to link cycle " + cycleKey + " to " + issueKey
+                                + ": " + e.getMessage(), e);
+            }
+        }
+    }
+
+    /** Find Scale Cloud test cases already covered by a Jira issue. */
+    @SuppressWarnings("unchecked")
+    public List<String> getScaleCloudTestCaseKeysLinkedToIssue(String issueKey) {
+        List<String> keys = new ArrayList<>();
+        String issueId = jiraClient.getIssueId(issueKey);
+        String projectKey = projectKeyFromIssue(issueKey);
+        int startAt = 0;
+
+        while (true) {
+            String url = scaleCloudBaseUrl() + "/testcases?projectKey=" + projectKey
+                    + "&maxResults=100&startAt=" + startAt;
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authSupport.scaleCloudHeaders()), Map.class);
+            Map body = response.getBody();
+            if (body == null || !(body.get("values") instanceof List<?> values)) {
+                break;
+            }
+            for (Object value : values) {
+                if (!(value instanceof Map<?, ?> testCase) || testCase.get("key") == null) {
+                    continue;
+                }
+                String testCaseKey = String.valueOf(testCase.get("key"));
+                ResponseEntity<Map> linksResponse = restTemplate.exchange(
+                        scaleCloudBaseUrl() + "/testcases/" + testCaseKey + "/links",
+                        HttpMethod.GET,
+                        new HttpEntity<>(authSupport.scaleCloudHeaders()), Map.class);
+                Map links = linksResponse.getBody();
+                Object issues = links == null ? null : links.get("issues");
+                if (issues instanceof List<?> issueLinks) {
+                    for (Object issueLink : issueLinks) {
+                        if (issueLink instanceof Map<?, ?> link
+                                && issueId.equals(String.valueOf(link.get("issueId")))) {
+                            keys.add(testCaseKey);
+                            break;
+                        }
+                    }
+                }
+            }
+            if (Boolean.TRUE.equals(body.get("isLast")) || values.size() < 100) {
+                break;
+            }
+            startAt += 100;
+        }
+        return keys;
     }
 
     @SuppressWarnings("unchecked")
@@ -1867,7 +2003,8 @@ public class ZephyrClient {
                 String projectKey = projectKeyFromIssue(cycleName);
                 return listScaleCloudTestCycles(projectKey).stream()
                         .filter(cycle -> cycleName.equals(cycle.getName()))
-                        .map(TestCycle::getId)
+                        .map(cycle -> cycle.getKey() != null && !cycle.getKey().isBlank()
+                                ? cycle.getKey() : cycle.getId())
                         .findFirst()
                         .orElse(null);
             }
