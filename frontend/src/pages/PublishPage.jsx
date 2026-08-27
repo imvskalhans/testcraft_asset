@@ -9,12 +9,12 @@ import { useApp } from "../context/AppContext";
 
 export default function PublishPage() {
   const {
-    loading, ownerName, testCases, expandedCase, setExpandedCase,
+    loading, ownerName, testCases, expandedCase, setExpandedCase, story,
     updateTestCase, updateStep, addStep, removeStep, removeTestCase, defaultStatus,
     projectError, folderWarning, projects, folders,
     selectedProject, setSelectedProject, selectedFolder, setSelectedFolder,
     publishedKeys, linkIssueKeys, setLinkIssueKeys,
-    publishAll, linkPublished,
+    publishAll, linkPublished, publishMessage, linkMessage,
   } = useApp();
 
   const folderEntries = Object.entries(folders);
@@ -67,11 +67,15 @@ export default function PublishPage() {
         <div style={{ marginTop: 14 }}>
           <Button primary disabled={loading || !testCases.length} onClick={publishAll}>Publish to Zephyr</Button>
         </div>
+        {publishMessage && <div style={{ marginTop: 10 }}><Alert type={publishMessage.type}>{publishMessage.text}</Alert></div>}
       </Card>
       <Card title="Link published tests to stories" step={3}>
         <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>
           Linking is available after publish. Enter one or more Jira keys (stories or change tickets).
         </p>
+        {story && <div style={{ background: colors.surface, borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 12 }}>
+          <strong>{story.key || "Fetched story"}</strong> — {story.summary || "Fetched Jira story"}
+        </div>}
         {publishedKeys.length > 0 && (
           <p style={{ fontSize: 12 }}>Published keys: <strong>{publishedKeys.join(", ")}</strong></p>
         )}
@@ -83,6 +87,7 @@ export default function PublishPage() {
           disabled={!publishedKeys.length}
         />
         <Button primary disabled={loading || !publishedKeys.length} onClick={linkPublished}>Link to stories</Button>
+        {linkMessage && <div style={{ marginTop: 10 }}><Alert type={linkMessage.type}>{linkMessage.text}</Alert></div>}
       </Card>
     </>
   );

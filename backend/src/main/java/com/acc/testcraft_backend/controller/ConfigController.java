@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -97,6 +98,22 @@ public class ConfigController {
             response.put("success", false);
             response.put("error", e.getMessage());
             return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    @GetMapping("/jira-project/{projectKey}")
+    public ResponseEntity<Map<String, Object>> jiraProject(@PathVariable String projectKey) {
+        try {
+            Map<String, Object> project = jiraClient.getProject(projectKey);
+            project.put("success", true);
+            return ResponseEntity.ok(project);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(502).body(Map.of(
+                    "success", false,
+                    "error", "Could not find Jira project '" + projectKey + "'. Check the key and Jira connection."
+            ));
         }
     }
 

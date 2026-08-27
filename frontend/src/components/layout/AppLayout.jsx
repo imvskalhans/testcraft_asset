@@ -3,7 +3,7 @@ import Sidebar from "./Sidebar";
 import PageHeader from "./PageHeader";
 import Alert from "../ui/Alert";
 
-export default function AppLayout({ page, onNavigate, currentUser, error, success, loading, children }) {
+export default function AppLayout({ page, onNavigate, currentUser, error, success, loading, children, showGlobalMessages = true }) {
   return (
     <div
       style={{
@@ -17,8 +17,8 @@ export default function AppLayout({ page, onNavigate, currentUser, error, succes
       <Sidebar page={page} onNavigate={onNavigate} currentUser={currentUser} />
       <main style={{ flex: 1, padding: 24, overflow: "auto", maxWidth: 980 }}>
         <PageHeader page={page} />
-        {error && <Alert>{error}</Alert>}
-        {success && <Alert type="success">{success}</Alert>}
+        {showGlobalMessages && error && <Alert>{error}</Alert>}
+        {showGlobalMessages && success && <Alert type="success">{success}</Alert>}
         {children}
         {loading && <p style={{ fontSize: 12, color: colors.muted }}>Working…</p>}
       </main>

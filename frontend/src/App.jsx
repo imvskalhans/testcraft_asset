@@ -27,6 +27,7 @@ function AppRouter() {
       error={error}
       success={success}
       loading={loading}
+      showGlobalMessages={page !== "publish"}
     >
       {pages[page] ?? pages.story}
     </AppLayout>

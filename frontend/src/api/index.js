@@ -11,6 +11,7 @@ export const api = {
   release: releaseApi,
   aiReview: (payload) => request("POST", "/api/ai-review", payload),
   generate: (payload) => request("POST", "/api/generate", payload),
+  email: (payload) => request("POST", "/api/email", payload),
 };
 
 export default api;

@@ -267,7 +267,7 @@ public class ZephyrController {
                     "success", false
             );
 
-            return ResponseEntity.status(500).body(response);
+            return ResponseEntity.status(isAlreadyLinked(e) ? 409 : 500).body(response);
         }
     }
 
@@ -305,6 +305,7 @@ public class ZephyrController {
         }
 
         List<Map<String, Object>> linked = new ArrayList<>();
+        List<String> alreadyLinked = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         for (String testCaseKey : testCaseKeys) {
             for (String issueKey : issueKeys) {
@@ -312,7 +313,12 @@ public class ZephyrController {
                     zephyrService.linkTestCaseToIssue(testCaseKey, issueKey);
                     linked.add(Map.of("testCaseKey", testCaseKey, "issueKey", issueKey));
                 } catch (Exception e) {
-                    errors.add(testCaseKey + " → " + issueKey + ": " + e.getMessage());
+                    String message = testCaseKey + " → " + issueKey;
+                    if (isAlreadyLinked(e)) {
+                        alreadyLinked.add(message);
+                    } else {
+                        errors.add(message + ": " + e.getMessage());
+                    }
                 }
             }
         }
@@ -320,6 +326,7 @@ public class ZephyrController {
         Map<String, Object> response = new HashMap<>();
         response.put("success", errors.isEmpty());
         response.put("linked", linked);
+        response.put("alreadyLinked", alreadyLinked);
         response.put("errors", errors);
         return ResponseEntity.ok(response);
     }
@@ -340,5 +347,10 @@ public class ZephyrController {
             }
         }
         return items;
+    }
+
+    private static boolean isAlreadyLinked(Exception exception) {
+        String message = exception.getMessage();
+        return message != null && message.startsWith("Already linked:");
     }
 }
