@@ -35,3 +35,7 @@
 # JetBrains
 .idea/
 .iml
+
+# Local configuration and frontend environment files may contain credentials.
+/backend/src/main/resources/application-local.properties
+/frontend/.env

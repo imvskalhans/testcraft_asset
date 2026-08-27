@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: testcraft-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: JIRA_BASE_URL
+        sync: false
+      - key: JIRA_API_PATH
+        value: /rest/api/3
+      - key: JIRA_AUTH_TYPE
+        value: basic
+      - key: JIRA_USERNAME
+        sync: false
+      - key: JIRA_API_TOKEN
+        sync: false
+      - key: JIRA_BEARER_TOKEN
+        sync: false
+      - key: ZEPHYR_PROVIDER
+        value: scale-cloud
+      - key: ZEPHYR_SCALECLOUDBASEURL
+        value: https://api.zephyrscale.smartbear.com/v2
+      - key: ZEPHYR_SCALECLOUDAPITOKEN
+        sync: false
+      - key: ZEPHYR_DEFAULTPROJECTKEY
+        sync: false
+      - key: ZEPHYR_DEFAULTPROJECTID
+        sync: false
+      - key: ZEPHYR_DEFAULTTESTCASESTATUS
+        value: Approved
+      - key: ZEPHYR_DEFAULTPRIORITY
+        value: Normal
+      - key: AI_PROVIDER
+        value: mock
+      - key: AI_GEMINI_APIKEY
+        sync: false
+      - key: AI_GEMINI_MODEL
+        value: gemini-3-flash-preview
+      - key: AI_OPENAI_APIKEY
+        sync: false
+      - key: AI_OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: TESTCRAFT_CORS_ORIGINS
+        value: https://testcraft-ui.onrender.com
+      - key: SERVER_PORT
+        value: 8080
+
+  - type: static
+    name: testcraft-ui
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist
+    plan: free
+    envVars:
+      - key: VITE_API_URL
+        value: https://testcraft-api.onrender.com
