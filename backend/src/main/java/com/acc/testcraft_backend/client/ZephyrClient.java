@@ -769,6 +769,7 @@ public class ZephyrClient {
             List<Map<String, Object>> scriptSteps = new ArrayList<>();
             for (String step : testCase.getSteps()) {
                 Map<String, Object> scriptStep = new LinkedHashMap<>();
+                scriptStep.put("index", scriptSteps.size());
                 scriptStep.put("description", step != null ? step : "");
                 scriptStep.put("testData", "");
                 scriptStep.put("expectedResult", testCase.getExpectedResult() != null
@@ -2735,11 +2736,23 @@ public class ZephyrClient {
                     Map.class
             );
         } catch (Exception e) {
+            if (isDuplicateCoverageLink(e)) {
+                throw new RuntimeException(
+                        "Already linked: test case " + testCaseKey
+                                + " is already linked to Jira issue " + issueKey
+                );
+            }
             throw new RuntimeException(
                     "Failed to link " + testCaseKey + " to " + issueKey + ": " + e.getMessage(),
                     e
             );
         }
+    }
+
+    private boolean isDuplicateCoverageLink(Exception exception) {
+        String message = exception.getMessage();
+        return message != null
+                && message.toLowerCase().contains("already has a coverage link");
     }
 
     @SuppressWarnings("unchecked")

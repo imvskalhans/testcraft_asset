@@ -12,6 +12,8 @@ export function AppProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [publishMessage, setPublishMessage] = useState(null);
+  const [linkMessage, setLinkMessage] = useState(null);
 
   const [review, setReview] = useState(null);
   const [testCases, setTestCases] = useState([]);
@@ -87,13 +89,14 @@ export function AppProvider({ children }) {
     setExpandedCase((current) => (current >= index && current > 0 ? current - 1 : current));
   };
 
-  const run = useCallback(async (fn) => {
+  const run = useCallback(async (fn, onError) => {
     clearMsg();
     setLoading(true);
     try {
       await fn();
     } catch (e) {
       setError(e.message);
+      if (onError) onError(e);
     } finally {
       setLoading(false);
     }
@@ -165,7 +168,11 @@ export function AppProvider({ children }) {
   const fetchStory = () => run(async () => {
     const data = await api.jira.fetchIssue(issueKey);
     setStory(data);
-    setLinkIssueKeys((current) => current || issueKey);
+    setLinkIssueKeys(issueKey.trim().toUpperCase());
+    try {
+      const project = await api.config.jiraProject(issueKey.split("-")[0]);
+      setSelectedProject(project.id);
+    } catch { /* The normal configured project remains selected. */ }
     setSuccess(`Fetched ${issueKey}`);
   });
 
@@ -179,6 +186,11 @@ export function AppProvider({ children }) {
     } catch {
       setRelease(null);
     }
+    setLinkIssueKeys(issueKey.trim().toUpperCase());
+    try {
+      const project = await api.config.jiraProject(issueKey.split("-")[0]);
+      setSelectedProject(project.id);
+    } catch { /* The normal configured project remains selected. */ }
     setSuccess(`Fetched Jira details for ${issueKey}`);
   });
 
@@ -226,17 +238,20 @@ export function AppProvider({ children }) {
     }
     setPublishedKeys(published);
     setLinkIssueKeys((current) => current || issueKey);
+    setPublishMessage({ type: "success", text: `Published ${published.length} test case(s): ${published.join(", ")}.` });
     setSuccess(`Published ${published.length} test case(s): ${published.join(", ")}. Link them to stories next.`);
-  });
+  }, (e) => setPublishMessage({ type: "error", text: e.message }));
 
   const linkPublished = () => run(async () => {
     if (!publishedKeys.length) throw new Error("Publish test cases first");
     const keys = linkIssueKeys.split(/[,\s]+/).map((k) => k.trim()).filter(Boolean);
     if (!keys.length) throw new Error("Enter at least one Jira story or change-ticket key");
     const res = await api.zephyr.linkBulk(publishedKeys, keys);
-    if (res.errors?.length) throw new Error(res.errors.join("; "));
-    setSuccess(`Linked ${publishedKeys.length} test case(s) to ${keys.join(", ")}`);
-  });
+    if (res.errors?.length && !res.linked?.length) throw new Error(res.errors.join("; "));
+    if (res.errors?.length) setLinkMessage({ type: "error", text: `Some links need attention: ${res.errors.join("; ")}` });
+    else setLinkMessage({ type: "success", text: `Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.` });
+    setSuccess(`Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.`);
+  }, (e) => setLinkMessage({ type: "error", text: e.message }));
 
   const fetchCycles = () => run(async () => {
     const cr = await api.release.fetchCr(crKey);
@@ -275,9 +290,11 @@ export function AppProvider({ children }) {
       return;
     }
     const res = await api.zephyr.linkBulk(unique, keys);
-    if (res.errors?.length) throw new Error(res.errors.join("; "));
-    setSuccess(`Linked ${unique.length} test case(s) to ${keys.join(", ")} in Jira/Zephyr`);
-  });
+    if (res.errors?.length && !res.linked?.length) throw new Error(res.errors.join("; "));
+    if (res.errors?.length) setLinkMessage({ type: "error", text: `Some links need attention: ${res.errors.join("; ")}` });
+    else setLinkMessage({ type: "success", text: `Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.` });
+    setSuccess(`Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.`);
+  }, (e) => setLinkMessage({ type: "error", text: e.message }));
 
   const releaseAiRun = (actionId) => run(async () => {
     if (actionId === "story-review") {
@@ -311,6 +328,7 @@ export function AppProvider({ children }) {
     issueKey, setIssueKey,
     story, storyText,
     loading, error, success,
+    publishMessage, linkMessage,
     review, releaseAi, aiActions,
     testCases, expandedCase, setExpandedCase,
     updateTestCase, updateStep, addStep, removeStep, removeTestCase,

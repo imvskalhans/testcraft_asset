@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @Component
 public class JiraClient {
@@ -213,6 +215,28 @@ public class JiraClient {
         }
 
         return projects;
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getProject(String projectKey) {
+        if (projectKey == null || projectKey.isBlank()) {
+            throw new IllegalArgumentException("Project key is required");
+        }
+        String url = jiraProperties.getBaseUrl().replaceAll("/$", "")
+                + jiraProperties.getApiPath()
+                + "/project/"
+                + URLEncoder.encode(projectKey.trim().toUpperCase(), StandardCharsets.UTF_8);
+        ResponseEntity<Map> response = restTemplate.exchange(
+                url, HttpMethod.GET, new HttpEntity<>(authHeaders()), Map.class);
+        Map<String, Object> body = response.getBody();
+        if (body == null || body.get("id") == null) {
+            throw new IllegalStateException("Jira returned no project details");
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", String.valueOf(body.get("id")));
+        result.put("key", String.valueOf(body.getOrDefault("key", projectKey.trim().toUpperCase())));
+        result.put("name", String.valueOf(body.getOrDefault("name", "")));
+        return result;
     }
 
     @SuppressWarnings("unchecked")
