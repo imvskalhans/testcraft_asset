@@ -33,7 +33,7 @@ services:
       - key: ZEPHYR_DEFAULTPRIORITY
         value: Normal
       - key: AI_PROVIDER
-        value: mock
+        value: gemini
       - key: AI_GEMINI_APIKEY
         sync: false
       - key: AI_GEMINI_MODEL
