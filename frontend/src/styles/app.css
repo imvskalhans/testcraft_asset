@@ -39,4 +39,5 @@ a { color: #185fa5; }
   .app-sidebar .user-panel { display: none !important; }
   .app-main { padding: 18px 14px !important; }
   .form-grid { grid-template-columns: 1fr !important; }
+  .chatbot { right: 14px !important; bottom: 14px !important; }
 }

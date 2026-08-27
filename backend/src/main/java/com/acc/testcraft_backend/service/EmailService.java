@@ -13,13 +13,10 @@ import java.util.Map;
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
-
     public Map<String, Object> submitFeedback(FeedbackRequest request) {
         log.info(
                 "Feedback received from {}: rating={}, message={}",
-                request.getUsername(),
-                request.getRating(),
-                request.getMessage()
+                request.getUsername(), request.getRating(), request.getMessage()
         );
 
         Map<String, Object> response = new LinkedHashMap<>();

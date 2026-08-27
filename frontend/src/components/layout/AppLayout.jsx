@@ -2,8 +2,10 @@ import { colors } from "../../constants/theme";
 import Sidebar from "./Sidebar";
 import PageHeader from "./PageHeader";
 import Alert from "../ui/Alert";
+import FeedbackModal from "../support/FeedbackModal";
+import Chatbot from "../support/Chatbot";
 
-export default function AppLayout({ page, onNavigate, currentUser, error, success, loading, children, showGlobalMessages = true }) {
+export default function AppLayout({ page, onNavigate, currentUser, error, success, loading, children, feedbackOpen, onFeedback, onCloseFeedback, showGlobalMessages = true }) {
   return (
     <div
       className="app-shell"
@@ -15,7 +17,7 @@ export default function AppLayout({ page, onNavigate, currentUser, error, succes
         color: colors.text,
       }}
     >
-      <Sidebar page={page} onNavigate={onNavigate} currentUser={currentUser} />
+      <Sidebar page={page} onNavigate={onNavigate} currentUser={currentUser} onFeedback={onFeedback} />
       <main className="app-main" style={{ flex: 1, padding: 24, overflow: "auto", maxWidth: 980 }}>
         {loading && <div className="app-loading-bar" aria-hidden="true" />}
         <PageHeader page={page} />
@@ -24,6 +26,8 @@ export default function AppLayout({ page, onNavigate, currentUser, error, succes
         {children}
         {loading && <div className="app-loading-status" role="status"><span className="app-loading-dot" /> Syncing with Jira and Zephyr…</div>}
       </main>
+      <Chatbot />
+      {feedbackOpen && <FeedbackModal currentUser={currentUser} onClose={onCloseFeedback} />}
     </div>
   );
 }

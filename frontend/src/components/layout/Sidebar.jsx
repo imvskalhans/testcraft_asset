@@ -2,7 +2,7 @@ import { colors } from "../../constants/theme";
 import { NAV_ITEMS } from "../../constants/navigation";
 import { initials } from "../../utils/initials";
 
-export default function Sidebar({ page, onNavigate, currentUser }) {
+export default function Sidebar({ page, onNavigate, currentUser, onFeedback }) {
   return (
     <aside
       className="app-sidebar"
@@ -60,6 +60,10 @@ export default function Sidebar({ page, onNavigate, currentUser }) {
           </div>
         ))}
       </nav>
+
+      <button type="button" onClick={onFeedback} style={{ width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.card, color: colors.brand, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+        ✉ Send feedback
+      </button>
 
       <div
         className="user-panel"

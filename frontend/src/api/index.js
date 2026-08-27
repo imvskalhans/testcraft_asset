@@ -14,6 +14,8 @@ export const api = {
   jenkinsLog: (payload) => request("POST", "/api/jenkins-log", payload),
   generate: (payload) => request("POST", "/api/generate", payload),
   email: (payload) => request("POST", "/api/email", payload),
+  feedback: (payload) => request("POST", "/api/feedback", payload),
+  chat: (payload) => request("POST", "/api/chat", payload),
 };
 
 export default api;

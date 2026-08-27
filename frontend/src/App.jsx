@@ -8,9 +8,11 @@ import AiPage from "./pages/AiPage";
 import SettingsPage from "./pages/SettingsPage";
 import PRReviewPage from "./pages/PRReviewPage";
 import JenkinsLogPage from "./pages/JenkinsLogPage";
+import { useState } from "react";
 
 function AppRouter() {
   const { page, navigate, currentUser, error, success, loading } = useApp();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const pages = {
     story: <StoryPage />,
@@ -31,6 +33,9 @@ function AppRouter() {
       error={error}
       success={success}
       loading={loading}
+      feedbackOpen={feedbackOpen}
+      onFeedback={() => setFeedbackOpen(true)}
+      onCloseFeedback={() => setFeedbackOpen(false)}
       showGlobalMessages={page !== "publish"}
     >
       {pages[page] ?? pages.story}

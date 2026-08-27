@@ -29,6 +29,10 @@ public class EmailController {
             return ResponseEntity.ok(
                     emailService.submitFeedback(request)
             );
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(
+                    Map.of("success", false, "error", e.getMessage())
+            );
         } catch (Exception e) {
             return ResponseEntity.status(500).body(
                     Map.of(

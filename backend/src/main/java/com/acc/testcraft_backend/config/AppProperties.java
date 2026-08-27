@@ -12,6 +12,7 @@ public class AppProperties {
     /** Owner for Zephyr test cases/cycles; blank = jira.username */
     private String defaultOwner = "";
     private String corsOrigins = "http://localhost:5173,http://localhost:3000";
+    private String supportEmail = "vsk6645@gmail.com";
 
     public String resolveOwner(JiraProperties jira) {
         if (defaultOwner != null && !defaultOwner.isBlank()) {
@@ -46,4 +47,8 @@ public class AppProperties {
     public void setCorsOrigins(String corsOrigins) {
         this.corsOrigins = corsOrigins;
     }
+
+    public String getSupportEmail() { return supportEmail; }
+
+    public void setSupportEmail(String supportEmail) { this.supportEmail = supportEmail; }
 }
