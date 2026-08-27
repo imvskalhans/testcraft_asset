@@ -107,6 +107,10 @@ public class ZephyrService {
         if (testCase == null) {
             throw new IllegalArgumentException("Test case is required");
         }
+        if (testCase.getSteps() == null
+                || testCase.getSteps().stream().noneMatch(step -> step != null && !step.isBlank())) {
+            throw new IllegalArgumentException("Test case must contain at least one non-empty step");
+        }
 
         String resolvedOwner = resolveOwner(owner);
         lastResolvedOwner = resolvedOwner;
@@ -157,6 +161,17 @@ public class ZephyrService {
 
     public String getConfiguredOwner() {
         return appProperties.resolveOwner(jiraProperties);
+    }
+
+    public String getTestCaseUiUrl(String testCaseKey) {
+        String projectKey = testCaseKey != null && testCaseKey.contains("-")
+                ? testCaseKey.substring(0, testCaseKey.indexOf('-')).toUpperCase()
+                : zephyrProperties.getDefaultProjectKey();
+        return jiraProperties.getBaseUrl().replaceAll("/$", "")
+                + "/jira/software/projects/" + projectKey
+                + "/apps/3feb7ced-1450-4676-aded-099c99bf534b/"
+                + "2baaeb69-15ac-4955-8eb6-e346aa1567aa#/v2/testCase/"
+                + testCaseKey + "/testScript";
     }
 
     private String resolveOwner(String owner) {

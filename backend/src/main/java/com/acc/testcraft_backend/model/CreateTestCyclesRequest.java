@@ -10,6 +10,7 @@ public class CreateTestCyclesRequest {
     private String cycleType;
     private List<String> cycleTypes;
     private String owner;
+    private List<String> testCaseKeys = new ArrayList<>();
 
     public String getCrKey() {
         return crKey;
@@ -49,6 +50,14 @@ public class CreateTestCyclesRequest {
 
     public void setOwner(String owner) {
         this.owner = owner;
+    }
+
+    public List<String> getTestCaseKeys() {
+        return testCaseKeys;
+    }
+
+    public void setTestCaseKeys(List<String> testCaseKeys) {
+        this.testCaseKeys = testCaseKeys;
     }
 
     public List<String> resolveCycleTypes() {

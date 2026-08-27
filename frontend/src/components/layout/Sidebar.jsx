@@ -5,6 +5,7 @@ import { initials } from "../../utils/initials";
 export default function Sidebar({ page, onNavigate, currentUser }) {
   return (
     <aside
+      className="app-sidebar"
       style={{
         width: 228,
         background: colors.card,
@@ -38,6 +39,7 @@ export default function Sidebar({ page, onNavigate, currentUser }) {
       <nav style={{ flex: 1 }}>
         {NAV_ITEMS.map((n) => (
           <div
+            className="nav-item"
             key={n.id}
             onClick={() => onNavigate(n.id)}
             style={{
@@ -57,6 +59,7 @@ export default function Sidebar({ page, onNavigate, currentUser }) {
       </nav>
 
       <div
+        className="user-panel"
         style={{
           display: "flex",
           gap: 8,

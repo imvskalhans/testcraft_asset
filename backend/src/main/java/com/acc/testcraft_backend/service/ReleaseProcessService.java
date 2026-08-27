@@ -108,8 +108,22 @@ public class ReleaseProcessService {
             List<String> cycleTypes,
             String ownerOverride
     ) {
+        return createTestCyclesAndTraceability(
+                crKey, createFolders, cycleTypes, ownerOverride, List.of());
+    }
+
+    public CreateTestCyclesResponse createTestCyclesAndTraceability(
+            String crKey,
+            boolean createFolders,
+            List<String> cycleTypes,
+            String ownerOverride,
+            List<String> publishedTestCaseKeys
+    ) {
         CreateTestCyclesResponse response = new CreateTestCyclesResponse();
         response.setCrKey(crKey);
+        publishedTestCaseKeys = publishedTestCaseKeys == null
+                ? List.of()
+                : publishedTestCaseKeys;
 
         List<String> types = new ArrayList<>();
         if (cycleTypes != null) {
@@ -203,12 +217,35 @@ public class ReleaseProcessService {
                                 jiraProperties.getBaseUrl().replaceAll("/$", "")
                                         + "/browse/" + story.getKey(),
                                 jiraProperties.getBaseUrl().replaceAll("/$", "")
-                                        + "/plugins/servlet/ac/com.kanoah.test-manager/main-project-page",
+                                        + "/jira/software/projects/"
+                                        + story.getKey().substring(0, story.getKey().indexOf('-')).toUpperCase()
+                                        + "/apps/3feb7ced-1450-4676-aded-099c99bf534b/"
+                                        + "2baaeb69-15ac-4955-8eb6-e346aa1567aa#/v2/testCycle/"
+                                        + cycleId,
                                 folderPath,
                                 existingId == null || existingId.isBlank() ? "CREATED" : "REUSED"
                         ));
 
-                        if (!zephyrClient.isScaleCloudMode()) {
+                        if (zephyrClient.isScaleCloudMode()) {
+                            String projectKey = story.getKey() != null && story.getKey().contains("-")
+                                    ? story.getKey().substring(0, story.getKey().indexOf('-')).toUpperCase()
+                                    : crKey.substring(0, crKey.indexOf('-')).toUpperCase();
+                            List<String> linkedTestCases = stories.size() == 1
+                                    ? publishedTestCaseKeys.stream()
+                                            .filter(key -> key != null && !key.isBlank())
+                                            .distinct()
+                                            .toList()
+                                    : zephyrClient.getScaleCloudTestCaseKeysLinkedToIssue(story.getKey());
+                            if (linkedTestCases.isEmpty()) {
+                                linkedTestCases = zephyrClient.getScaleCloudTestCaseKeysLinkedToIssue(story.getKey());
+                            }
+                            for (String testCaseKey : linkedTestCases) {
+                                zephyrClient.addTestCaseToScaleCloudCycle(
+                                        cycleId, projectKey, testCaseKey);
+                            }
+                            zephyrClient.linkScaleCloudCycleToIssue(cycleId, story.getKey());
+                            zephyrClient.linkScaleCloudCycleToIssue(cycleId, crKey);
+                        } else {
                             List<Integer> testCaseIds =
                                     zephyrClient.getTestCaseIdsLinkedToIssue(story.getKey());
                             if (!testCaseIds.isEmpty()) {

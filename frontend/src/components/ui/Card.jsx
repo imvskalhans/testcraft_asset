@@ -3,6 +3,7 @@ import { colors } from "../../constants/theme";
 export default function Card({ title, step, children, actions }) {
   return (
     <div
+      className="card-shell"
       style={{
         background: colors.card,
         border: `1px solid ${colors.border}`,

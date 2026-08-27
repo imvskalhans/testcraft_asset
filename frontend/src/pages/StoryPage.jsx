@@ -10,7 +10,7 @@ export default function StoryPage() {
     <>
       <Card title="Fetch Jira issue">
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input style={{ ...inputStyle, flex: 1 }} value={issueKey} onChange={(e) => setIssueKey(e.target.value.toUpperCase())} placeholder="PROJ-123" />
+          <input style={{ ...inputStyle, flex: 1 }} value={issueKey} onChange={(e) => setIssueKey(e.target.value.toUpperCase())} placeholder="Enter a Jira issue key, e.g. KAN-7" aria-label="Jira issue key" />
           <Button primary disabled={loading} onClick={fetchStory}>Fetch</Button>
         </div>
         {story && (

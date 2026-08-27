@@ -1,6 +1,7 @@
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Chip from "../components/ui/Chip";
+import Alert from "../components/ui/Alert";
 import { inputStyle } from "../styles/forms";
 import { colors } from "../constants/theme";
 import { CYCLE_TYPES } from "../constants/options";
@@ -9,6 +10,7 @@ import { useApp } from "../context/AppContext";
 export default function ReleasePage() {
   const {
     loading, crKey, setCrKey, release, cycleFetch, cyclesCreated,
+    cycleCreateMessage, cycleLinkMessage,
     cycleTypes, toggleCycleType, cycleLinkKeys, setCycleLinkKeys,
     fetchCycles, createCycles, linkCycles,
   } = useApp();
@@ -18,7 +20,7 @@ export default function ReleasePage() {
       <Card title="Fetch existing test cycles" step={1}>
         <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>Start by loading the story/CR and any cycles already in Zephyr.</p>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input style={{ ...inputStyle, flex: 1 }} value={crKey} onChange={(e) => setCrKey(e.target.value.toUpperCase())} placeholder="KAN-1" />
+          <input style={{ ...inputStyle, flex: 1 }} value={crKey} onChange={(e) => setCrKey(e.target.value.toUpperCase())} placeholder="Enter a change request key, e.g. KAN-7" aria-label="Change request key" />
           <Button primary disabled={loading} onClick={fetchCycles}>Fetch cycles</Button>
         </div>
         {release && (
@@ -54,13 +56,14 @@ export default function ReleasePage() {
           ))}
         </div>
         <Button primary disabled={loading || !cycleFetch} onClick={createCycles}>Create selected cycle types</Button>
+        {cycleCreateMessage && <div style={{ marginTop: 10 }}><Alert type={cycleCreateMessage.type}>{cycleCreateMessage.text}</Alert></div>}
         {cyclesCreated && (
           <div style={{ fontSize: 12, marginTop: 10 }}>
             <p>{cyclesCreated.message}</p>
             {(cyclesCreated.createdCycles ?? []).map((cycle) => (
               <div key={cycle.id} style={{ borderTop: `1px solid ${colors.border}`, padding: "8px 0" }}>
                 <strong>{cycle.name}</strong> · {cycle.action || "—"}<br />
-                Cycle ID: <code>{cycle.id}</code> · Story: {cycle.storyKey} ·{" "}
+                Cycle: <strong><code>{cycle.id}</code></strong> · {cycle.name} · Story: {cycle.storyKey} ·{" "}
                 <a href={cycle.zephyrUrl} target="_blank" rel="noreferrer">Open Zephyr Test Cycles</a>{" "}
                 <a href={cycle.jiraUrl} target="_blank" rel="noreferrer">Open Jira story</a>
               </div>
@@ -71,6 +74,7 @@ export default function ReleasePage() {
       <Card title="Link test cases, stories, and change tickets" step={3}>
         <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>
           After cycles are created, link published tests and Jira keys (stories / CRs) in Zephyr.
+          Links are bidirectional and appear on both the test case and Jira issue.
         </p>
         <input
           style={{ ...inputStyle, marginBottom: 10 }}
@@ -80,6 +84,7 @@ export default function ReleasePage() {
           disabled={!cyclesCreated}
         />
         <Button primary disabled={loading || !cyclesCreated} onClick={linkCycles}>Link to Jira / Zephyr</Button>
+        {cycleLinkMessage && <div style={{ marginTop: 10 }}><Alert type={cycleLinkMessage.type}>{cycleLinkMessage.text}</Alert></div>}
       </Card>
     </>
   );

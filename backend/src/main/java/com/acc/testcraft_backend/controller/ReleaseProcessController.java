@@ -329,7 +329,8 @@ public class ReleaseProcessController {
                             request.getCrKey(),
                             request.isCreateFolders(),
                             request.resolveCycleTypes(),
-                            request.getOwner()
+                            request.getOwner(),
+                            request.getTestCaseKeys()
                     );
 
             return response.isSuccess()

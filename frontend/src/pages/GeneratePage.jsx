@@ -46,7 +46,7 @@ export default function GeneratePage() {
           ))}
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 12 }}>
+      <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 12 }}>
         {PROMPT_TYPES.map((t) => (
           <button
             key={t.id}

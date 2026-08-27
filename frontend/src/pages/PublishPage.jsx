@@ -11,9 +11,9 @@ export default function PublishPage() {
   const {
     loading, ownerName, testCases, expandedCase, setExpandedCase, story,
     updateTestCase, updateStep, addStep, removeStep, removeTestCase, defaultStatus,
-    projectError, folderWarning, projects, folders,
+    projectError, folderError, folderWarning, projects, folders,
     selectedProject, setSelectedProject, selectedFolder, setSelectedFolder,
-    publishedKeys, linkIssueKeys, setLinkIssueKeys,
+    publishedKeys, publishedTestCaseLinks, linkIssueKeys, setLinkIssueKeys,
     publishAll, linkPublished, publishMessage, linkMessage,
   } = useApp();
 
@@ -43,8 +43,9 @@ export default function PublishPage() {
       </Card>
       <Card title="Where should they be published?" step={2}>
         {projectError && <Alert>{projectError}</Alert>}
+        {folderError && <Alert>{folderError}</Alert>}
         {folderWarning && <Alert type="info">{folderWarning}</Alert>}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <label style={{ fontSize: 12 }}>
             Project
             <select style={{ ...inputStyle, marginTop: 4 }} value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)}>
@@ -72,12 +73,17 @@ export default function PublishPage() {
       <Card title="Link published tests to stories" step={3}>
         <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>
           Linking is available after publish. Enter one or more Jira keys (stories or change tickets).
+          Each Zephyr trace link is bidirectional, so it appears on both the test case and Jira issue.
         </p>
         {story && <div style={{ background: colors.surface, borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 12 }}>
           <strong>{story.key || "Fetched story"}</strong> — {story.summary || "Fetched Jira story"}
         </div>}
         {publishedKeys.length > 0 && (
-          <p style={{ fontSize: 12 }}>Published keys: <strong>{publishedKeys.join(", ")}</strong></p>
+          <p style={{ fontSize: 12 }}>Published keys: {(publishedTestCaseLinks.length ? publishedTestCaseLinks : publishedKeys.map((key) => ({ key }))).map(({ key, url }) => (
+            <span key={key} style={{ marginRight: 8 }}>
+              {url ? <a href={url} target="_blank" rel="noreferrer"><strong>{key}</strong></a> : <strong>{key}</strong>}
+            </span>
+          ))}</p>
         )}
         <input
           style={{ ...inputStyle, marginBottom: 10 }}
