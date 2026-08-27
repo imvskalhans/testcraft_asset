@@ -47,8 +47,9 @@ services:
       - key: SERVER_PORT
         value: 8080
 
-  - type: static
+  - type: web
     name: testcraft-ui
+    runtime: static
     buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: ./frontend/dist
     plan: free
