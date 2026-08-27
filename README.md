@@ -231,3 +231,19 @@ If you rename either Render service, update both `VITE_API_URL` on the static si
 | API container fails | Open Render logs and confirm the Docker build completed and Java started on port 8080. |
 | Jira/Zephyr not connected | Check the backend environment variables and regional Zephyr URL. |
 | First request is slow | The free backend was sleeping; retry after it wakes. |
+
+### Private GitHub repository cannot be selected
+
+Render can deploy private repositories, but its GitHub App must have access to the repository.
+
+1. Open the Render Dashboard and go to **Account Settings → Git Providers → GitHub**.
+2. Choose **Configure** or **Manage GitHub App**.
+3. On GitHub, select the account that owns `imvskalhans/testcraft_asset`.
+4. Under repository access, choose **Only select repositories** and select `testcraft_asset` (or choose all repositories if that is your organization policy).
+5. Save the GitHub App installation.
+6. Return to Render and reconnect/refresh the GitHub connection.
+7. Create **New → Blueprint** again and select the `main` branch.
+
+If the repository belongs to an organization, an organization owner may need to approve the Render GitHub App. If the repository was renamed or transferred, remove the old Render connection and install the GitHub App again for the new owner.
+
+Do not make the repository public as a workaround. This project previously contained local configuration files, so all Jira, Zephyr, and AI credentials must be rotated before deployment and the private files must remain outside Git.

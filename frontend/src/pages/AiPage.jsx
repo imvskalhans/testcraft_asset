@@ -35,12 +35,13 @@ function markdownToEmailText(text) {
 export default function AiPage() {
   const {
     issueKey, setIssueKey, story, storyText, loading,
-    aiActions, review, releaseAi, fetchForAi, releaseAiRun,
+    aiActions, review, releaseAi, fetchForAi, releaseAiRun, postAiComment,
   } = useApp();
   const generatedResult = review?.review || releaseAi?.analysis || "";
   const [resultText, setResultText] = useState("");
   const [showPreview, setShowPreview] = useState(true);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [jiraCommentOpen, setJiraCommentOpen] = useState(false);
   const [recipient, setRecipient] = useState("");
 
   useEffect(() => setResultText(generatedResult), [generatedResult]);
@@ -50,6 +51,10 @@ export default function AiPage() {
     const body = markdownToEmailText(resultText);
     window.location.href = `mailto:${encodeURIComponent(recipient.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     setEmailOpen(false);
+  };
+  const confirmJiraComment = () => {
+    postAiComment(resultText);
+    setJiraCommentOpen(false);
   };
 
   return (
@@ -93,6 +98,7 @@ export default function AiPage() {
             <Button onClick={() => setShowPreview((value) => !value)}>{showPreview ? "Edit result" : "Preview Markdown"}</Button>
             <Button onClick={copyResult}>Copy content</Button>
             <Button onClick={() => setEmailOpen(true)}>Email result</Button>
+            <Button primary onClick={() => setJiraCommentOpen(true)}>Post to Jira</Button>
           </div>
           {showPreview ? <div style={{ background: colors.surface, borderRadius: 8, padding: 14, fontSize: 13 }}><InlineMarkdown text={resultText} /></div> : <textarea aria-label="Editable AI result" style={{ ...inputStyle, width: "100%", minHeight: 320, boxSizing: "border-box", fontFamily: "inherit", lineHeight: 1.5 }} value={resultText} onChange={(e) => setResultText(e.target.value)} />}
         </div>}
@@ -103,6 +109,21 @@ export default function AiPage() {
           <label style={{ display: "block", fontSize: 12, marginBottom: 10 }}>Recipient<input autoFocus type="email" style={{ ...inputStyle, marginTop: 4, width: "100%", boxSizing: "border-box" }} value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="qa-team@example.com" /></label>
           <p style={{ fontSize: 12, color: colors.muted }}>Your default email application will open with the edited result.</p>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><Button onClick={() => setEmailOpen(false)}>Cancel</Button><Button primary disabled={!recipient.trim()} onClick={openEmail}>Open email</Button></div>
+        </div>
+      </div>}
+      {jiraCommentOpen && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "grid", placeItems: "center", zIndex: 10 }}>
+        <div style={{ background: "#fff", borderRadius: 10, padding: 20, width: "min(520px, calc(100% - 32px))", boxSizing: "border-box" }}>
+          <h3 style={{ marginTop: 0 }}>Post AI result to Jira</h3>
+          <p style={{ fontSize: 13, color: colors.muted, lineHeight: 1.5 }}>
+            This will add the current AI result as a comment on <strong>{issueKey}</strong>.
+          </p>
+          <div style={{ background: colors.surface, borderRadius: 8, padding: 10, maxHeight: 180, overflow: "auto", whiteSpace: "pre-wrap", fontSize: 12 }}>
+            {resultText}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+            <Button onClick={() => setJiraCommentOpen(false)}>Cancel</Button>
+            <Button primary disabled={loading || !resultText.trim() || !issueKey.trim()} onClick={confirmJiraComment}>Post comment</Button>
+          </div>
         </div>
       </div>}
     </>

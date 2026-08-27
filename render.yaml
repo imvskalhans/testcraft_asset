@@ -54,4 +54,4 @@ services:
     staticPublishPath: ./frontend/dist
     envVars:
       - key: VITE_API_URL
-        value: https://testcraft-api.onrender.com
+        value: https://testcraft-api-jcna.onrender.com
