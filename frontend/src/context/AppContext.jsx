@@ -207,6 +207,11 @@ export function AppProvider({ children }) {
     setComment("");
   });
 
+  const postAiComment = (commentText) => run(async () => {
+    await api.jira.comment(issueKey, commentText);
+    setSuccess(`AI result posted as a Jira comment on ${issueKey}`);
+  });
+
   const doGenerate = () => run(async () => {
     const count = Math.max(1, Number(testCount) || 1);
     const data = await api.generate({
@@ -375,7 +380,7 @@ export function AppProvider({ children }) {
     connStatus, configStatus, currentUser,
     setupGuide, showSetupGuide, setShowSetupGuide,
     owner, ownerName, defaultStatus,
-    fetchStory, fetchForAi, postComment, doGenerate,
+    fetchStory, fetchForAi, postComment, postAiComment, doGenerate,
     publishAll, linkPublished,
     fetchCycles, createCycles, linkCycles,
     releaseAiRun, testConnections,
