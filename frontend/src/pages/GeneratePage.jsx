@@ -2,9 +2,10 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Chip from "../components/ui/Chip";
 import TestCaseList from "../components/testcases/TestCaseList";
+import PromptTemplatePicker from "../components/generate/PromptTemplatePicker";
 import { inputStyle } from "../styles/forms";
 import { colors } from "../constants/theme";
-import { TEST_TYPES, COUNT_PRESETS, PROMPT_TYPES } from "../constants/options";
+import { TEST_TYPES, COUNT_PRESETS } from "../constants/options";
 import { useApp } from "../context/AppContext";
 
 export default function GeneratePage() {
@@ -12,6 +13,7 @@ export default function GeneratePage() {
     issueKey, ownerName, loading, doGenerate,
     testCount, setTestCount, testType, setTestType,
     promptType, setPromptType, customPrompt, setCustomPrompt,
+    savedPromptTemplates, saveCurrentPromptTemplate, removePromptTemplate,
     testCases, expandedCase, setExpandedCase,
     updateTestCase, updateStep, addStep, removeStep, removeTestCase, defaultStatus,
   } = useApp();
@@ -46,34 +48,17 @@ export default function GeneratePage() {
           ))}
         </div>
       </div>
-      <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 12 }}>
-        {PROMPT_TYPES.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setPromptType(t.id)}
-            style={{
-              textAlign: "left",
-              padding: 12,
-              borderRadius: 10,
-              border: `1px solid ${promptType === t.id ? colors.brand : colors.border}`,
-              background: promptType === t.id ? colors.brandLight : "#fff",
-              cursor: "pointer",
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 700, color: promptType === t.id ? colors.brand : colors.text }}>{t.label}</div>
-            <div style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>{t.hint}</div>
-          </button>
-        ))}
-      </div>
-      {promptType === "custom" && (
-        <textarea
-          style={{ ...inputStyle, minHeight: 80, marginBottom: 12 }}
-          value={customPrompt}
-          onChange={(e) => setCustomPrompt(e.target.value)}
-          placeholder="Describe extra coverage, data, or environments to include…"
-        />
-      )}
+
+      <PromptTemplatePicker
+        promptType={promptType}
+        setPromptType={setPromptType}
+        customPrompt={customPrompt}
+        setCustomPrompt={setCustomPrompt}
+        savedTemplates={savedPromptTemplates}
+        onSaveTemplate={saveCurrentPromptTemplate}
+        onDeleteTemplate={removePromptTemplate}
+      />
+
       <TestCaseList
         testCases={testCases}
         expandedCase={expandedCase}

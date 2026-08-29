@@ -93,7 +93,31 @@ public class TestGenerationService {
                     Cover happy path, negative path, boundary, authorization, and data validation.
                     Make each test independently executable.
                     """;
-            case "custom" -> (request.getCustomPrompt() == null || request.getCustomPrompt().isBlank())
+            case "smoke" -> """
+                    Use a smoke-test prompt:
+                    Focus on the fastest critical-path checks needed to confirm the story is basically working.
+                    Prioritize login/access, primary user flow, and one key failure guardrail per test.
+                    Keep steps short and avoid deep edge-case exploration.
+                    """;
+            case "security" -> """
+                    Use a security-focused QA prompt:
+                    Cover authentication, authorization, session handling, input validation, injection risks,
+                    sensitive data exposure, and unsafe defaults.
+                    Include negative tests for unauthorized access and malformed input.
+                    """;
+            case "api" -> """
+                    Use an API-focused QA prompt:
+                    Cover request/response contracts, required headers, status codes, validation errors,
+                    pagination or filtering behavior, idempotency where relevant, and backward compatibility.
+                    Make steps explicit about endpoint, method, payload, and expected response.
+                    """;
+            case "mobile" -> """
+                    Use a mobile-focused QA prompt:
+                    Cover responsive layout, touch interactions, orientation changes, offline or flaky-network
+                    behavior, permissions, and platform-specific UX expectations where relevant.
+                    Keep steps practical for manual mobile execution.
+                    """;
+            case "template", "custom" -> (request.getCustomPrompt() == null || request.getCustomPrompt().isBlank())
                     ? "Follow standard QA coverage."
                     : request.getCustomPrompt().trim();
             default -> """

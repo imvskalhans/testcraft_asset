@@ -1,8 +1,34 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import api from "../api";
 import { formatStoryDetails } from "../utils/story";
+import {
+  deletePromptTemplate,
+  loadSavedPromptTemplates,
+  savePromptTemplate,
+} from "../utils/promptTemplates";
 
 const AppContext = createContext(null);
+
+function resolveGenerationPrompt(promptType, customPrompt, savedTemplates) {
+  if (promptType.startsWith("saved:")) {
+    const templateId = promptType.slice("saved:".length);
+    const template = savedTemplates.find((item) => item.id === templateId);
+    return {
+      promptType: "template",
+      customPrompt: template?.prompt || "",
+    };
+  }
+  if (promptType === "custom") {
+    return {
+      promptType: "custom",
+      customPrompt: customPrompt.trim() || undefined,
+    };
+  }
+  return {
+    promptType,
+    customPrompt: undefined,
+  };
+}
 
 export function AppProvider({ children }) {
   const [page, setPage] = useState("story");
@@ -24,6 +50,7 @@ export function AppProvider({ children }) {
   const [testType, setTestType] = useState("Functional");
   const [promptType, setPromptType] = useState("default");
   const [customPrompt, setCustomPrompt] = useState("");
+  const [savedPromptTemplates, setSavedPromptTemplates] = useState([]);
 
   const [projects, setProjects] = useState({});
   const [folders, setFolders] = useState({});
@@ -57,6 +84,29 @@ export function AppProvider({ children }) {
   const owner = currentUser?.owner || currentUser?.accountId || currentUser?.emailAddress || "";
   const ownerName = currentUser?.displayName || owner || "Current user";
   const defaultStatus = configStatus?.zephyr?.defaultTestCaseStatus || testCases[0]?.status || "Approved";
+
+  const refreshSavedPromptTemplates = useCallback(() => {
+    setSavedPromptTemplates(loadSavedPromptTemplates());
+  }, []);
+
+  useEffect(() => {
+    refreshSavedPromptTemplates();
+  }, [refreshSavedPromptTemplates]);
+
+  const saveCurrentPromptTemplate = useCallback((name, prompt) => {
+    const saved = savePromptTemplate({ name, prompt });
+    refreshSavedPromptTemplates();
+    setPromptType(`saved:${saved.id}`);
+    setCustomPrompt(saved.prompt);
+    setSuccess(`Saved prompt template "${saved.name}"`);
+  }, [refreshSavedPromptTemplates]);
+
+  const removePromptTemplate = useCallback((id) => {
+    deletePromptTemplate(id);
+    refreshSavedPromptTemplates();
+    setPromptType((current) => (current === `saved:${id}` ? "custom" : current));
+    setSuccess("Prompt template deleted");
+  }, [refreshSavedPromptTemplates]);
 
   const clearMsg = () => { setError(null); setSuccess(null); };
 
@@ -214,12 +264,13 @@ export function AppProvider({ children }) {
 
   const doGenerate = () => run(async () => {
     const count = Math.max(1, Number(testCount) || 1);
+    const prompt = resolveGenerationPrompt(promptType, customPrompt, savedPromptTemplates);
     const data = await api.generate({
       issueKey,
       testType,
       testCount: count,
-      promptType,
-      customPrompt: promptType === "custom" ? customPrompt : undefined,
+      promptType: prompt.promptType,
+      customPrompt: prompt.customPrompt,
       jiraDetails: storyText || undefined,
     });
     setTestCases((data.testCases ?? []).map((tc) => ({
@@ -366,6 +417,9 @@ export function AppProvider({ children }) {
     testType, setTestType,
     promptType, setPromptType,
     customPrompt, setCustomPrompt,
+    savedPromptTemplates,
+    saveCurrentPromptTemplate,
+    removePromptTemplate,
     projects, folders, selectedProject, setSelectedProject,
     selectedFolder, setSelectedFolder,
     projectError, folderWarning,
