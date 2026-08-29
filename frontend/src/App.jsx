@@ -1,5 +1,6 @@
 import AppLayout from "./components/layout/AppLayout";
 import { AppProvider, useApp } from "./context/AppContext";
+import HomePage from "./pages/HomePage";
 import StoryPage from "./pages/StoryPage";
 import GeneratePage from "./pages/GeneratePage";
 import PublishPage from "./pages/PublishPage";
@@ -16,6 +17,7 @@ function AppRouter() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const pages = {
+    home: <HomePage />,
     story: <StoryPage />,
     generate: <GeneratePage />,
     publish: <PublishPage />,
@@ -40,7 +42,7 @@ function AppRouter() {
       onCloseFeedback={() => setFeedbackOpen(false)}
       showGlobalMessages={page !== "publish"}
     >
-      {pages[page] ?? pages.story}
+      {pages[page] ?? pages.home}
     </AppLayout>
   );
 }

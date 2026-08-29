@@ -2,6 +2,7 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Chip from "../components/ui/Chip";
 import TestCaseList from "../components/testcases/TestCaseList";
+import TestCaseImportExport from "../components/testcases/TestCaseImportExport";
 import PromptTemplatePicker from "../components/generate/PromptTemplatePicker";
 import { inputStyle } from "../styles/forms";
 import { colors } from "../constants/theme";
@@ -14,6 +15,7 @@ export default function GeneratePage() {
     testCount, setTestCount, testType, setTestType,
     promptType, setPromptType, customPrompt, setCustomPrompt,
     savedPromptTemplates, saveCurrentPromptTemplate, removePromptTemplate,
+    importTestCases,
     testCases, expandedCase, setExpandedCase,
     updateTestCase, updateStep, addStep, removeStep, removeTestCase, defaultStatus,
   } = useApp();
@@ -57,6 +59,14 @@ export default function GeneratePage() {
         savedTemplates={savedPromptTemplates}
         onSaveTemplate={saveCurrentPromptTemplate}
         onDeleteTemplate={removePromptTemplate}
+      />
+
+      <TestCaseImportExport
+        testCases={testCases}
+        issueKey={issueKey}
+        testType={testType}
+        onImport={importTestCases}
+        disabled={loading}
       />
 
       <TestCaseList

@@ -6,6 +6,7 @@ import {
   loadSavedPromptTemplates,
   savePromptTemplate,
 } from "../utils/promptTemplates";
+import { loadAppStats, recordAppStat, resetAppStats } from "../utils/appStats";
 
 const AppContext = createContext(null);
 
@@ -30,8 +31,20 @@ function resolveGenerationPrompt(promptType, customPrompt, savedTemplates) {
   };
 }
 
+function updatePublishItem(items, index, patch) {
+  return items.map((item) => (item.index === index ? { ...item, ...patch } : item));
+}
+
+function mergePublishItems(existingItems, nextItems) {
+  const merged = new Map(existingItems.map((item) => [item.index, item]));
+  nextItems.forEach((item) => {
+    merged.set(item.index, { ...merged.get(item.index), ...item });
+  });
+  return [...merged.values()].sort((a, b) => a.index - b.index);
+}
+
 export function AppProvider({ children }) {
-  const [page, setPage] = useState("story");
+  const [page, setPage] = useState("home");
   const [issueKey, setIssueKey] = useState("KAN-1");
   const [story, setStory] = useState(null);
   const [storyText, setStoryText] = useState("");
@@ -51,6 +64,9 @@ export function AppProvider({ children }) {
   const [promptType, setPromptType] = useState("default");
   const [customPrompt, setCustomPrompt] = useState("");
   const [savedPromptTemplates, setSavedPromptTemplates] = useState([]);
+  const [appStats, setAppStats] = useState(() => loadAppStats());
+  const [publishing, setPublishing] = useState(false);
+  const [publishProgress, setPublishProgress] = useState(null);
 
   const [projects, setProjects] = useState({});
   const [folders, setFolders] = useState({});
@@ -107,6 +123,39 @@ export function AppProvider({ children }) {
     setPromptType((current) => (current === `saved:${id}` ? "custom" : current));
     setSuccess("Prompt template deleted");
   }, [refreshSavedPromptTemplates]);
+
+  const trackStat = useCallback((type, detail = {}) => {
+    setAppStats(recordAppStat(type, detail));
+  }, []);
+
+  const handleResetStats = useCallback(() => {
+    setAppStats(resetAppStats());
+    setSuccess("Statistics reset");
+  }, []);
+
+  const mapImportedTestCases = useCallback((cases) => (
+    cases.map((tc) => ({
+      ...tc,
+      status: tc.status || defaultStatus,
+      priority: tc.priority || "Normal",
+      steps: tc.steps?.length ? [...tc.steps] : [""],
+    }))
+  ), [defaultStatus]);
+
+  const importTestCases = useCallback((cases, errorMessage) => {
+    if (errorMessage) {
+      setError(errorMessage);
+      return;
+    }
+    setTestCases(mapImportedTestCases(cases));
+    setExpandedCase(0);
+    trackStat("imported", {
+      count: cases.length,
+      label: `Imported ${cases.length} test case(s)`,
+      issueKey,
+    });
+    setSuccess(`Imported ${cases.length} test case(s). Review them before publishing.`);
+  }, [issueKey, mapImportedTestCases, trackStat]);
 
   const clearMsg = () => { setError(null); setSuccess(null); };
 
@@ -230,6 +279,7 @@ export function AppProvider({ children }) {
       const project = await api.config.jiraProject(issueKey.split("-")[0]);
       setSelectedProject(project.id);
     } catch { /* The normal configured project remains selected. */ }
+    trackStat("story-fetched", { label: `Fetched ${issueKey}`, issueKey });
     setSuccess(`Fetched ${issueKey}`);
   });
 
@@ -280,35 +330,166 @@ export function AppProvider({ children }) {
       steps: tc.steps?.length ? [...tc.steps] : [""],
     })));
     setExpandedCase(0);
-    setSuccess(`Generated ${data.testCases?.length ?? 0} ${testType} test case(s). Edit any field before publishing.`);
+    const generatedCount = data.testCases?.length ?? 0;
+    trackStat("generated", {
+      count: generatedCount,
+      label: `Generated ${generatedCount} ${testType} test case(s)`,
+      issueKey,
+    });
+    setSuccess(`Generated ${generatedCount} ${testType} test case(s). Edit any field before publishing.`);
   });
 
-  const publishAll = () => run(async () => {
-    if (!testCases.length) throw new Error("Generate test cases first");
+  const publishCasesAtIndices = useCallback(async (indices) => {
+    if (!indices.length) return;
     if (!selectedProject) throw new Error("Select a project");
     if (!selectedFolder) throw new Error("Select a folder");
 
-    const published = [];
-    const publishedLinks = [];
-    for (const tc of testCases) {
-      const res = await api.zephyr.publish({
-        testCase: tc,
-        projectId: selectedProject,
-        folderId: selectedFolder,
-        owner,
-        statusId: "",
+    setPublishing(true);
+    setPublishMessage(null);
+    clearMsg();
+
+    setPublishProgress((current) => {
+      const existing = new Map((current?.items ?? []).map((item) => [item.index, item]));
+      const items = indices.map((index) => {
+        const currentItem = existing.get(index);
+        const testCase = testCases[index];
+        return {
+          index,
+          name: testCase?.testName || `Test case ${index + 1}`,
+          status: "pending",
+          key: currentItem?.key || "",
+          url: currentItem?.url || "",
+          error: "",
+        };
       });
-      if (res.testCaseKey) {
-        published.push(res.testCaseKey);
-        publishedLinks.push({ key: res.testCaseKey, url: res.testCaseUrl });
+      return {
+        active: true,
+        total: Math.max(current?.total ?? 0, testCases.length),
+        items: mergePublishItems(current?.items ?? [], items),
+      };
+    });
+
+    const published = [...publishedKeys];
+    const publishedLinks = [...publishedTestCaseLinks];
+    let successCount = 0;
+
+    for (const index of indices) {
+      const tc = testCases[index];
+      if (!tc) continue;
+
+      setPublishProgress((current) => ({
+        ...current,
+        items: updatePublishItem(current?.items ?? [], index, { status: "publishing", error: "" }),
+      }));
+
+      try {
+        const res = await api.zephyr.publish({
+          testCase: tc,
+          projectId: selectedProject,
+          folderId: selectedFolder,
+          owner,
+          statusId: "",
+        });
+
+        if (res.success === false || !res.testCaseKey) {
+          throw new Error(res.error || "Publish failed");
+        }
+
+        if (!published.includes(res.testCaseKey)) {
+          published.push(res.testCaseKey);
+          publishedLinks.push({ key: res.testCaseKey, url: res.testCaseUrl });
+        }
+
+        successCount += 1;
+        setPublishProgress((current) => ({
+          ...current,
+          items: updatePublishItem(current?.items ?? [], index, {
+            status: "success",
+            key: res.testCaseKey,
+            url: res.testCaseUrl,
+            error: "",
+          }),
+        }));
+      } catch (e) {
+        setPublishProgress((current) => ({
+          ...current,
+          items: updatePublishItem(current?.items ?? [], index, {
+            status: "error",
+            error: e.message || "Publish failed",
+          }),
+        }));
       }
     }
+
     setPublishedKeys(published);
     setPublishedTestCaseLinks(publishedLinks);
     setLinkIssueKeys((current) => current || issueKey);
-    setPublishMessage({ type: "success", text: `Published ${published.length} test case(s): ${published.join(", ")}.` });
-    setSuccess(`Published ${published.length} test case(s): ${published.join(", ")}. Link them to stories next.`);
-  }, (e) => setPublishMessage({ type: "error", text: e.message }));
+
+    const failedCount = indices.length - successCount;
+    if (successCount > 0) {
+      trackStat("published", {
+        count: successCount,
+        label: `Published ${successCount} test case(s)`,
+        issueKey,
+      });
+    }
+
+    if (failedCount > 0 && successCount > 0) {
+      setPublishMessage({
+        type: "error",
+        text: `Published ${successCount} test case(s); ${failedCount} failed. Retry the failed cases below.`,
+      });
+      setError(`Published ${successCount} test case(s); ${failedCount} failed.`);
+    } else if (failedCount > 0) {
+      setPublishMessage({ type: "error", text: "All publishes failed. Review the errors and retry." });
+      setError("All publishes failed. Review the errors and retry.");
+    } else {
+      setPublishMessage({
+        type: "success",
+        text: `Published ${successCount} test case(s): ${published.join(", ")}.`,
+      });
+      setSuccess(`Published ${successCount} test case(s): ${published.join(", ")}. Link them to stories next.`);
+    }
+
+    setPublishing(false);
+  }, [
+    issueKey,
+    owner,
+    publishedKeys,
+    publishedTestCaseLinks,
+    selectedFolder,
+    selectedProject,
+    testCases,
+    trackStat,
+  ]);
+
+  const publishAll = async () => {
+    if (!testCases.length) {
+      setError("Generate or import test cases first");
+      return;
+    }
+    try {
+      await publishCasesAtIndices(testCases.map((_, index) => index));
+    } catch (e) {
+      setPublishMessage({ type: "error", text: e.message });
+      setError(e.message);
+      setPublishing(false);
+    }
+  };
+
+  const retryFailedPublishes = async () => {
+    const failedIndices = (publishProgress?.items ?? [])
+      .filter((item) => item.status === "error")
+      .map((item) => item.index);
+    if (!failedIndices.length) return;
+    try {
+      await publishCasesAtIndices(failedIndices);
+    } catch (e) {
+      setPublishMessage({ type: "error", text: e.message });
+      setError(e.message);
+      setPublishing(false);
+    }
+  };
 
   const linkPublished = () => run(async () => {
     if (!publishedKeys.length) throw new Error("Publish test cases first");
@@ -318,6 +499,11 @@ export function AppProvider({ children }) {
     if (res.errors?.length && !res.linked?.length) throw new Error(res.errors.join("; "));
     if (res.errors?.length) setLinkMessage({ type: "error", text: `Some links need attention: ${res.errors.join("; ")}` });
     else setLinkMessage({ type: "success", text: `Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.` });
+    trackStat("linked", {
+      count: res.linked?.length ?? 0,
+      label: `Linked ${res.linked?.length ?? 0} test case link(s)`,
+      issueKey,
+    });
     setSuccess(`Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.`);
   }, (e) => setLinkMessage({ type: "error", text: e.message }));
 
@@ -346,6 +532,13 @@ export function AppProvider({ children }) {
     const data = await api.release.createTestCycles(crKey, true, cycleTypes, owner, publishedKeys);
     setCyclesCreated(data);
     setCycleCreateMessage({ type: "success", text: data.message ?? `Created ${data.cyclesCreated} cycle(s)` });
+    if (data.cyclesCreated) {
+      trackStat("cycles-created", {
+        count: data.cyclesCreated,
+        label: `Created ${data.cyclesCreated} test cycle(s)`,
+        issueKey: crKey,
+      });
+    }
   }, (e) => setCycleCreateMessage({ type: "error", text: e.message }));
 
   const linkCycles = () => run(async () => {
@@ -380,11 +573,13 @@ export function AppProvider({ children }) {
     if (actionId === "story-review") {
       const data = await api.aiReview({ issueKey, jiraDetails: storyText || undefined });
       setReview(data);
+      trackStat("ai-run", { label: "Story AI review", issueKey });
       setSuccess(data.mockMode ? "AI review (mock mode)" : "AI review complete");
       return;
     }
     const data = await api.release.aiAnalysis({ crKey: crKey || issueKey, action: actionId });
     setReleaseAi(data);
+    trackStat("ai-run", { label: "Release AI analysis", issueKey: crKey || issueKey });
     setSuccess(data.mockMode ? "Release AI (mock mode)" : "Release analysis complete");
   });
 
@@ -420,6 +615,12 @@ export function AppProvider({ children }) {
     savedPromptTemplates,
     saveCurrentPromptTemplate,
     removePromptTemplate,
+    appStats,
+    resetStats: handleResetStats,
+    importTestCases,
+    publishing,
+    publishProgress,
+    retryFailedPublishes,
     projects, folders, selectedProject, setSelectedProject,
     selectedFolder, setSelectedFolder,
     projectError, folderWarning,
