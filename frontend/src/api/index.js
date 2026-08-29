@@ -4,6 +4,7 @@ import { jiraApi } from "./jiraApi";
 import { zephyrApi } from "./zephyrApi";
 import { releaseApi } from "./releaseApi";
 import { traceabilityApi } from "./traceabilityApi";
+import { aiApi } from "./aiApi";
 
 export const api = {
   config: configApi,
@@ -11,6 +12,7 @@ export const api = {
   zephyr: zephyrApi,
   release: releaseApi,
   traceability: traceabilityApi,
+  ai: aiApi,
   aiReview: (payload) => request("POST", "/api/ai-review", payload),
   prReview: (payload) => request("POST", "/api/pr-review", payload),
   jenkinsLog: (payload) => request("POST", "/api/jenkins-log", payload),

@@ -301,15 +301,22 @@ export function AppProvider({ children }) {
     setSuccess(`Fetched Jira details for ${issueKey}`);
   });
 
+  const fetchCrForAi = () => run(async () => {
+    const cr = await api.release.fetchCr(crKey);
+    setRelease(cr);
+    setSuccess(`Fetched change request ${crKey}`);
+  });
+
   const postComment = () => run(async () => {
     await api.jira.comment(issueKey, comment);
     setSuccess("Comment posted to Jira");
     setComment("");
   });
 
-  const postAiComment = (commentText) => run(async () => {
-    await api.jira.comment(issueKey, commentText);
-    setSuccess(`AI result posted as a Jira comment on ${issueKey}`);
+  const postAiComment = (commentText, targetKey = issueKey) => run(async () => {
+    const key = (targetKey || issueKey).trim();
+    await api.jira.comment(key, commentText);
+    setSuccess(`AI result posted as a Jira comment on ${key}`);
   });
 
   const doGenerate = () => run(async () => {
@@ -635,7 +642,7 @@ export function AppProvider({ children }) {
     connStatus, configStatus, currentUser,
     setupGuide, showSetupGuide, setShowSetupGuide,
     owner, ownerName, defaultStatus,
-    fetchStory, fetchForAi, postComment, postAiComment, doGenerate,
+    fetchStory, fetchForAi, fetchCrForAi, postComment, postAiComment, doGenerate,
     publishAll, linkPublished,
     fetchCycles, createCycles, linkCycles,
     releaseAiRun, testConnections,

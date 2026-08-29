@@ -5,7 +5,7 @@ export const NAV_ITEMS = [
   { id: "publish", label: "Publish & Link", subtitle: "Review generated cases, choose a Zephyr folder, publish, then link to Jira stories." },
   { id: "release", label: "Test Cycles", subtitle: "Fetch existing cycles first, then create the types you need, then link to Jira/Zephyr." },
   { id: "traceability", label: "Traceability", subtitle: "View coverage gaps across stories, linked test cases, cycles, and executions." },
-  { id: "ai", label: "AI Actions", subtitle: "Fetch the Jira issue first, then run one AI action at a time." },
+  { id: "ai", label: "AI Actions", subtitle: "Pick an AI workspace — context is shown only when that action needs Jira or CR details." },
   { id: "pr-review", label: "PR Review", subtitle: "Fetch a GitHub or Bitbucket pull request and get actionable AI feedback.", status: "Upcoming" },
   { id: "jenkins-log", label: "Jenkins Logs", subtitle: "Analyze long Jenkins console output and summarize build failures.", status: "Upcoming" },
   { id: "settings", label: "Settings", subtitle: "Verify connections and view setup instructions." },
