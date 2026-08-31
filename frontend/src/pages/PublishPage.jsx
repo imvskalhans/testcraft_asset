@@ -2,6 +2,8 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
 import TestCaseList from "../components/testcases/TestCaseList";
+import TestCaseImportExport from "../components/testcases/TestCaseImportExport";
+import PublishProgress from "../components/publish/PublishProgress";
 import { inputStyle } from "../styles/forms";
 import { colors } from "../constants/theme";
 import { TEST_TYPES } from "../constants/options";
@@ -9,12 +11,13 @@ import { useApp } from "../context/AppContext";
 
 export default function PublishPage() {
   const {
-    loading, ownerName, testCases, expandedCase, setExpandedCase, story,
+    loading, publishing, ownerName, issueKey, testType, testCases, expandedCase, setExpandedCase, story,
     updateTestCase, updateStep, addStep, removeStep, removeTestCase, defaultStatus,
     projectError, folderError, folderWarning, projects, folders,
     selectedProject, setSelectedProject, selectedFolder, setSelectedFolder,
     publishedKeys, publishedTestCaseLinks, linkIssueKeys, setLinkIssueKeys,
-    publishAll, linkPublished, publishMessage, linkMessage,
+    publishAll, retryFailedPublishes, publishProgress, linkPublished,
+    publishMessage, linkMessage, importTestCases,
   } = useApp();
 
   const folderEntries = Object.entries(folders);
@@ -22,7 +25,14 @@ export default function PublishPage() {
   return (
     <>
       <Card title="Generated test cases to publish" step={1}>
-        {!testCases.length && <Alert type="info">Generate test cases first on the Generate Tests page.</Alert>}
+        <TestCaseImportExport
+          testCases={testCases}
+          issueKey={issueKey}
+          testType={testType}
+          onImport={importTestCases}
+          disabled={loading || publishing}
+        />
+        {!testCases.length && <Alert type="info">Generate or import test cases first.</Alert>}
         {testCases.length > 0 && (
           <>
             <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>Owner: {ownerName}. Edit any field before publishing.</p>
@@ -66,8 +76,15 @@ export default function PublishPage() {
           </label>
         </div>
         <div style={{ marginTop: 14 }}>
-          <Button primary disabled={loading || !testCases.length} onClick={publishAll}>Publish to Zephyr</Button>
+          <Button primary disabled={loading || publishing || !testCases.length} onClick={publishAll}>
+            {publishing ? "Publishing…" : "Publish to Zephyr"}
+          </Button>
         </div>
+        <PublishProgress
+          progress={publishProgress}
+          publishing={publishing}
+          onRetryFailed={retryFailedPublishes}
+        />
         {publishMessage && <div style={{ marginTop: 10 }}><Alert type={publishMessage.type}>{publishMessage.text}</Alert></div>}
       </Card>
       <Card title="Link published tests to stories" step={3}>
@@ -92,7 +109,7 @@ export default function PublishPage() {
           placeholder="KAN-1, KAN-2"
           disabled={!publishedKeys.length}
         />
-        <Button primary disabled={loading || !publishedKeys.length} onClick={linkPublished}>Link to stories</Button>
+        <Button primary disabled={loading || publishing || !publishedKeys.length} onClick={linkPublished}>Link to stories</Button>
         {linkMessage && <div style={{ marginTop: 10 }}><Alert type={linkMessage.type}>{linkMessage.text}</Alert></div>}
       </Card>
     </>

@@ -1,9 +1,11 @@
 import AppLayout from "./components/layout/AppLayout";
 import { AppProvider, useApp } from "./context/AppContext";
+import HomePage from "./pages/HomePage";
 import StoryPage from "./pages/StoryPage";
 import GeneratePage from "./pages/GeneratePage";
 import PublishPage from "./pages/PublishPage";
 import ReleasePage from "./pages/ReleasePage";
+import TraceabilityPage from "./pages/TraceabilityPage";
 import AiPage from "./pages/AiPage";
 import SettingsPage from "./pages/SettingsPage";
 import PRReviewPage from "./pages/PRReviewPage";
@@ -15,10 +17,12 @@ function AppRouter() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const pages = {
+    home: <HomePage />,
     story: <StoryPage />,
     generate: <GeneratePage />,
     publish: <PublishPage />,
     release: <ReleasePage />,
+    traceability: <TraceabilityPage />,
     ai: <AiPage />,
     "pr-review": <PRReviewPage />,
     "jenkins-log": <JenkinsLogPage />,
@@ -38,7 +42,7 @@ function AppRouter() {
       onCloseFeedback={() => setFeedbackOpen(false)}
       showGlobalMessages={page !== "publish"}
     >
-      {pages[page] ?? pages.story}
+      {pages[page] ?? pages.home}
     </AppLayout>
   );
 }

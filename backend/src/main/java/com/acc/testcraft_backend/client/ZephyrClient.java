@@ -5,8 +5,10 @@ import com.acc.testcraft_backend.config.IntegrationConfig.IntegrationAuthSupport
 import com.acc.testcraft_backend.config.IntegrationUrls;
 import com.acc.testcraft_backend.config.JiraProperties;
 import com.acc.testcraft_backend.config.ZephyrProperties;
+import com.acc.testcraft_backend.model.LinkedTestCaseRef;
 import com.acc.testcraft_backend.model.TestCase;
 import com.acc.testcraft_backend.model.TestCycle;
+import com.acc.testcraft_backend.model.TestExecutionRef;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -2954,5 +2956,146 @@ public class ZephyrClient {
             }
         }
         return cycles;
+    }
+
+    /** List test executions attached to a Scale Cloud cycle. */
+    @SuppressWarnings("unchecked")
+    public List<TestExecutionRef> getScaleCloudExecutionsForCycle(String cycleKey) {
+        List<TestExecutionRef> executions = new ArrayList<>();
+        if (cycleKey == null || cycleKey.isBlank()) {
+            return executions;
+        }
+
+        int startAt = 0;
+        int maxResults = 100;
+        while (true) {
+            String url = scaleCloudBaseUrl()
+                    + "/testexecutions?testCycle="
+                    + cycleKey
+                    + "&maxResults="
+                    + maxResults
+                    + "&startAt="
+                    + startAt;
+            try {
+                ResponseEntity<Map> response = restTemplate.exchange(
+                        url,
+                        HttpMethod.GET,
+                        new HttpEntity<>(authSupport.scaleCloudHeaders()),
+                        Map.class
+                );
+                Map<String, Object> body = response.getBody();
+                if (body == null) {
+                    break;
+                }
+                Object values = body.get("values");
+                int batch = 0;
+                if (values instanceof List<?> list) {
+                    batch = list.size();
+                    for (Object item : list) {
+                        if (!(item instanceof Map<?, ?> map)) {
+                            continue;
+                        }
+                        TestExecutionRef execution = new TestExecutionRef();
+                        execution.setTestCaseKey(
+                                map.get("testCaseKey") != null
+                                        ? String.valueOf(map.get("testCaseKey"))
+                                        : ""
+                        );
+                        Object status = map.get("status");
+                        if (status instanceof Map<?, ?> statusMap && statusMap.get("name") != null) {
+                            execution.setStatus(String.valueOf(statusMap.get("name")));
+                        } else if (map.get("statusName") != null) {
+                            execution.setStatus(String.valueOf(map.get("statusName")));
+                        }
+                        if (!execution.getTestCaseKey().isBlank()) {
+                            execution.setUrl(buildScaleCloudTestCaseUrl(execution.getTestCaseKey()));
+                            executions.add(execution);
+                        }
+                    }
+                }
+                if (Boolean.TRUE.equals(body.get("isLast")) || batch == 0) {
+                    break;
+                }
+                startAt += maxResults;
+                if (startAt > 2000) {
+                    break;
+                }
+            } catch (Exception e) {
+                System.err.println(
+                        "Failed to fetch executions for cycle "
+                                + cycleKey
+                                + ": "
+                                + e.getMessage()
+                );
+                break;
+            }
+        }
+        return executions;
+    }
+
+    public List<LinkedTestCaseRef> getLinkedTestCasesForIssue(String issueKey) {
+        List<LinkedTestCaseRef> refs = new ArrayList<>();
+        if (issueKey == null || issueKey.isBlank()) {
+            return refs;
+        }
+
+        if (isScaleCloudMode()) {
+            for (String key : getScaleCloudTestCaseKeysLinkedToIssue(issueKey)) {
+                LinkedTestCaseRef ref = new LinkedTestCaseRef();
+                ref.setKey(key);
+                ref.setUrl(buildScaleCloudTestCaseUrl(key));
+                refs.add(ref);
+            }
+            return refs;
+        }
+
+        try {
+            String issueId = jiraClient.getIssueId(issueKey);
+            for (Integer testCaseId : getTestCaseIdsLinkedToIssue(issueId)) {
+                LinkedTestCaseRef ref = new LinkedTestCaseRef();
+                ref.setKey("TC-" + testCaseId);
+                ref.setName("Test case " + testCaseId);
+                refs.add(ref);
+            }
+        } catch (Exception e) {
+            System.err.println(
+                    "Failed to fetch linked test cases for "
+                            + issueKey
+                            + ": "
+                            + e.getMessage()
+            );
+        }
+        return refs;
+    }
+
+    public String buildScaleCloudTestCaseUrl(String testCaseKey) {
+        if (testCaseKey == null || testCaseKey.isBlank()) {
+            return "";
+        }
+        String projectKey = testCaseKey.contains("-")
+                ? testCaseKey.substring(0, testCaseKey.indexOf('-')).toUpperCase()
+                : zephyrProperties.getDefaultProjectKey();
+        return jiraProperties.getBaseUrl().replaceAll("/$", "")
+                + "/jira/software/projects/"
+                + projectKey
+                + "/apps/3feb7ced-1450-4676-aded-099c99bf534b/"
+                + "2baaeb69-15ac-4955-8eb6-e346aa1567aa#/v2/testCase/"
+                + testCaseKey
+                + "/testScript";
+    }
+
+    public String buildScaleCloudTestCycleUrl(String cycleKey) {
+        if (cycleKey == null || cycleKey.isBlank()) {
+            return "";
+        }
+        String projectKey = cycleKey.contains("-")
+                ? cycleKey.substring(0, cycleKey.indexOf('-')).toUpperCase()
+                : zephyrProperties.getDefaultProjectKey();
+        return jiraProperties.getBaseUrl().replaceAll("/$", "")
+                + "/jira/software/projects/"
+                + projectKey
+                + "/apps/3feb7ced-1450-4676-aded-099c99bf534b/"
+                + "2baaeb69-15ac-4955-8eb6-e346aa1567aa#/v2/testCycle/"
+                + cycleKey;
     }
 }
