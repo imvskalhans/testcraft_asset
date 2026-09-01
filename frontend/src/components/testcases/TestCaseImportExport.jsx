@@ -15,6 +15,7 @@ export default function TestCaseImportExport({
   testType,
   onImport,
   disabled = false,
+  showImport = true,
 }) {
   const fileInputRef = useRef(null);
   const hasCases = testCases.length > 0;
@@ -35,15 +36,13 @@ export default function TestCaseImportExport({
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>Import / export</div>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{showImport ? "Import / export" : "Export test cases"}</div>
           <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
-            Review test cases outside TestCraft or reuse them across stories.
+            {showImport ? "Review test cases outside TestCraft or reuse them across stories." : "Download generated cases for sharing or reuse."}
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button disabled={disabled} onClick={() => fileInputRef.current?.click()}>
-            Import
-          </Button>
+          {showImport && <Button disabled={disabled} onClick={() => fileInputRef.current?.click()}>Import</Button>}
           <Button disabled={disabled || !hasCases} onClick={() => exportTestCasesJson(testCases, issueKey)}>
             JSON
           </Button>
@@ -55,14 +54,14 @@ export default function TestCaseImportExport({
           </Button>
         </div>
       </div>
-      <input
+      {showImport && <input
         ref={fileInputRef}
         type="file"
         accept=".json,.csv,.xls,.xlsx,application/json,text/csv"
         style={{ display: "none" }}
         onChange={handleImport}
-      />
-      {!hasCases && (
+      />}
+      {showImport && !hasCases && (
         <div style={{ marginTop: 10 }}>
           <Alert type="info">Import JSON, CSV, or Excel to load test cases without generating them first.</Alert>
         </div>

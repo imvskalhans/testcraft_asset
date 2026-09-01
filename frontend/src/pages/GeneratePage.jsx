@@ -19,7 +19,6 @@ export default function GeneratePage() {
     promptType, setPromptType, customPrompt, setCustomPrompt,
     additionalPrompt, setAdditionalPrompt,
     savedPromptTemplates, saveCurrentPromptTemplate, removePromptTemplate,
-    importTestCases,
     testCases, expandedCase, setExpandedCase, navigate, configStatus, story,
     updateTestCase, updateStep, addStep, removeStep, removeTestCase, defaultStatus,
   } = useApp();
@@ -83,7 +82,7 @@ export default function GeneratePage() {
         testCases={testCases}
         issueKey={issueKey}
         testType={testType}
-        onImport={importTestCases}
+        showImport={false}
         disabled={loading}
       />
 
