@@ -7,6 +7,7 @@ import com.acc.testcraft_backend.config.JiraProperties;
 import com.acc.testcraft_backend.model.CreateTestCyclesResponse;
 import com.acc.testcraft_backend.model.CreatedCycleSummary;
 import com.acc.testcraft_backend.model.LinkedStory;
+import com.acc.testcraft_backend.model.JiraStory;
 import com.acc.testcraft_backend.model.ReleaseProcess;
 import com.acc.testcraft_backend.model.StoryTestCycle;
 import com.acc.testcraft_backend.model.TestCase;
@@ -38,6 +39,10 @@ public class ReleaseProcessService {
 
     public ReleaseProcess fetchChangeTicket(String crKey) {
         return jiraClient.fetchIssueWithLinkedStories(crKey);
+    }
+
+    public JiraStory fetchIssue(String issueKey) {
+        return jiraClient.fetchIssue(issueKey);
     }
 
     public boolean validateCR(String crKey) {

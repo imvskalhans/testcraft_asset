@@ -14,6 +14,7 @@ public class JiraStory {
     private String acceptanceCriteria;
     private List<String> labels = new ArrayList<>();
     private List<Comment> comments = new ArrayList<>();
+    private List<AiAttachment> attachments = new ArrayList<>();
 
     public String getId() {
         return id;
@@ -86,6 +87,9 @@ public class JiraStory {
     public void setComments(List<Comment> comments) {
         this.comments = comments;
     }
+
+    public List<AiAttachment> getAttachments() { return attachments; }
+    public void setAttachments(List<AiAttachment> attachments) { this.attachments = attachments; }
 
     public static class Comment {
         private String body;

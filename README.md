@@ -137,11 +137,11 @@ http://localhost:8080/api/config/me
 
 ## Recommended workflow
 
-1. **Jira Story** — enter an issue key such as `KAN-7` and fetch it.
-2. **Generate Tests** — choose test count/type and generate cases.
+1. **Fetch Jira Details** — enter an issue key such as `KAN-7` and fetch it.
+2. **Generate AI Test Cases** — choose test count/type and generate cases.
 3. Review and edit the cases, especially steps and expected results.
-4. **Publish & Link** — select a Zephyr project/folder, publish, then link cases to Jira stories or change requests.
-5. **Test Cycles** — fetch the change request/story, create cycle types, and update cycle traceability.
+4. **Publish to Zephyr & Link** — review cases, publish them to Zephyr Scale, then link the returned Zephyr cases to Jira stories or change requests. TestCraft currently publishes test cases to Zephyr only.
+5. **Test Cycle Generation** — enter a story/change request, optionally review existing cycles, then create or reuse cycles and update traceability. A new cycle can be created even when no existing cycle is found.
 6. **Settings** — verify connections and resolve project/folder setup issues.
 
 Publish and link cases before creating cycles when automatic cycle attachment is expected. After changing backend properties, restart Spring Boot.

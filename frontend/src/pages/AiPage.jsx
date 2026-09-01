@@ -10,6 +10,13 @@ import { colors } from "../constants/theme";
 import { useApp } from "../context/AppContext";
 import api from "../api";
 import { formatReleaseText } from "../utils/releaseText";
+import InfoIcon from "../components/settings/InfoIcon";
+import SkippedAttachmentsNotice from "../components/ai/SkippedAttachmentsNotice";
+
+function isSupportedAttachment(attachment) {
+  const mime = attachment.mimeType || "";
+  return mime.startsWith("image/") || mime.startsWith("text/") || ["application/json", "text/csv"].includes(mime) || /\.(txt|md|csv|json)$/i.test(attachment.name || "");
+}
 
 function markdownToEmailText(text) {
   return String(text || "")
@@ -25,7 +32,8 @@ function markdownToEmailText(text) {
 export default function AiPage() {
   const {
     issueKey, setIssueKey, story, storyText, loading, fetchForAi, postAiComment,
-    crKey, setCrKey, release, fetchCrForAi,
+    crKey, setCrKey, release, fetchCrForAi, configStatus,
+    setAiLoading,
   } = useApp();
 
   const [actions, setActions] = useState([]);
@@ -37,6 +45,7 @@ export default function AiPage() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [jiraCommentOpen, setJiraCommentOpen] = useState(false);
   const [recipient, setRecipient] = useState("");
+  const [actionInfoOpen, setActionInfoOpen] = useState(false);
 
   useEffect(() => {
     api.ai.actions()
@@ -52,6 +61,7 @@ export default function AiPage() {
   const releaseText = useMemo(() => formatReleaseText(release), [release]);
   const jiraCommentTarget = activeActionId === "release-notes" && crKey ? crKey : issueKey;
   const canPostToJira = activeActionId === "release-notes" ? Boolean(release && crKey) : Boolean(story);
+  const usesIssueContext = Boolean(activeAction?.supportsJiraContext || activeAction?.supportsCrContext);
 
   const resultText = result?.result || "";
   const subject = useMemo(() => {
@@ -65,26 +75,36 @@ export default function AiPage() {
     setActiveActionId(actionId);
     setResult(null);
     setRunError("");
+    setActionInfoOpen(false);
   };
 
   const backToPicker = () => {
     setActiveActionId("");
     setResult(null);
     setRunError("");
+    setActionInfoOpen(false);
   };
 
   const runAction = async (payload) => {
     setRunning(true);
+    setAiLoading(true);
     setRunError("");
     setResult(null);
     try {
-      const data = await api.ai.run(payload);
+      const jiraAttachments = (usesIssueContext ? (story?.attachments ?? []).filter((attachment) => attachment.data
+        && isSupportedAttachment(attachment)
+        && (configStatus?.ai?.imageInputSupported || !attachment.mimeType?.startsWith("image/"))) : []);
+      const data = await api.ai.run({
+        ...payload,
+        attachments: [...jiraAttachments, ...(payload.attachments ?? [])].slice(0, 5),
+      });
       if (!data.success) throw new Error(data.error || "AI action failed");
       setResult(data);
     } catch (e) {
       setRunError(e.message || "AI action failed");
     } finally {
       setRunning(false);
+      setAiLoading(false);
     }
   };
 
@@ -96,9 +116,9 @@ export default function AiPage() {
 
   if (!activeAction) {
     return (
-      <Card title="AI Actions">
+      <Card title="AI Workspace">
         <p style={{ marginTop: 0, marginBottom: 16, fontSize: 13, color: colors.muted, lineHeight: 1.6 }}>
-          Choose an AI workspace. Each action declares what context it needs — DOM locator and test data run without Jira or CR.
+          Choose a focused AI workspace. Add Jira or change-request context when useful, plus supported image or text attachments.
         </p>
         {actionsError && <div style={{ marginBottom: 12 }}><Alert>{actionsError}</Alert></div>}
         <AiActionPicker actions={actions} onSelect={openAction} />
@@ -111,12 +131,16 @@ export default function AiPage() {
       <Card
         title={activeAction.label}
         actions={(
-          <Button onClick={backToPicker}>All actions</Button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <InfoIcon onClick={() => setActionInfoOpen((value) => !value)} title={`About ${activeAction.label}`} />
+            <Button primary onClick={backToPicker}>← All AI Workspaces</Button>
+          </div>
         )}
       >
         <p style={{ marginTop: 0, marginBottom: 4, fontSize: 12, color: colors.muted, lineHeight: 1.6 }}>
           {activeAction.description}
         </p>
+        {actionInfoOpen && <Alert type="info"><strong>How this workspace helps:</strong> {activeAction.description} Use the inputs below to give the AI task-specific details; loaded Jira/change-request context and supported attachments are included automatically.</Alert>}
 
         <AiContextBar
           issueKey={issueKey}
@@ -144,12 +168,13 @@ export default function AiPage() {
           hasRelease={Boolean(release)}
           running={running}
           result={result}
+          supportsImageInput={Boolean(configStatus?.ai?.imageInputSupported)}
           onRun={runAction}
         />
 
         {runError && <div style={{ marginTop: 12 }}><Alert>{runError}</Alert></div>}
 
-        {resultText && (
+        {resultText && usesIssueContext && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
             <Button onClick={() => setEmailOpen(true)}>Email result</Button>
             {canPostToJira && (
@@ -159,6 +184,12 @@ export default function AiPage() {
             )}
           </div>
         )}
+        {result && usesIssueContext && <div style={{ marginTop: 14 }}>
+          <SkippedAttachmentsNotice
+            attachments={story?.attachments}
+            supportsImageInput={Boolean(configStatus?.ai?.imageInputSupported)}
+          />
+        </div>}
       </Card>
 
       {emailOpen && (

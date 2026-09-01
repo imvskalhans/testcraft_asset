@@ -17,11 +17,11 @@ export default function ReleasePage() {
 
   return (
     <>
-      <Card title="Fetch existing test cycles" step={1}>
-        <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>Start by loading the story/CR and any cycles already in Zephyr.</p>
+      <Card title="Choose a story or change request" step={1}>
+        <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>Enter a Jira story or change request to review its Zephyr coverage. Existing cycles are optional — if none are found, you can create new ones below.</p>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input style={{ ...inputStyle, flex: 1 }} value={crKey} onChange={(e) => setCrKey(e.target.value.toUpperCase())} placeholder="Enter a change request key, e.g. KAN-7" aria-label="Change request key" />
-          <Button primary disabled={loading} onClick={fetchCycles}>Fetch cycles</Button>
+          <Button primary disabled={loading} onClick={fetchCycles}>Check Zephyr cycles</Button>
         </div>
         {release && (
           <div style={{ fontSize: 12, marginBottom: 10 }}>
@@ -45,11 +45,11 @@ export default function ReleasePage() {
             ))}
           </div>
         ) : cycleFetch && (
-          <p style={{ fontSize: 12, color: colors.muted }}>No existing cycles found for this key.</p>
+          <p style={{ fontSize: 12, color: colors.muted }}>No existing cycles found. You can create new cycles for this story or change request in the next step.</p>
         )}
       </Card>
-      <Card title="Create test cycles" step={2}>
-        <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>Select every cycle type you need. Folders are created as Year → Month → story + type.</p>
+      <Card title="Create or reuse test cycles" step={2}>
+        <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>Select one or more types. TestCraft creates a new cycle when needed, or reuses a matching cycle. Cycles are created in Zephyr using a Year → Month → story + type structure.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
           {CYCLE_TYPES.map((t) => (
             <Chip key={t} active={cycleTypes.includes(t)} onClick={() => toggleCycleType(t)}>{t}</Chip>
@@ -71,10 +71,9 @@ export default function ReleasePage() {
           </div>
         )}
       </Card>
-      <Card title="Link test cases, stories, and change tickets" step={3}>
+      <Card title="Attach published tests and link Jira" step={3}>
         <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>
-          After cycles are created, link published tests and Jira keys (stories / CRs) in Zephyr.
-          Links are bidirectional and appear on both the test case and Jira issue.
+          After cycles are created, TestCraft attaches published Zephyr test cases and links the cycle to Jira stories or change requests. Publishing and cycle management happen in Zephyr; Jira stores the related traceability links.
         </p>
         <input
           style={{ ...inputStyle, marginBottom: 10 }}

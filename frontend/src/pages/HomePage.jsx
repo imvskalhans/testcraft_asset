@@ -51,10 +51,10 @@ export default function HomePage() {
           TestCraft tracks your local QA workflow here. Statistics are stored in this browser so you can see how much work you have done across sessions.
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button primary onClick={() => navigate("story")}>Fetch Jira story</Button>
-          <Button onClick={() => navigate("generate")}>Generate tests</Button>
-          <Button onClick={() => navigate("publish")}>Publish & link</Button>
-          <Button onClick={() => navigate("traceability")}>Traceability</Button>
+          <Button primary onClick={() => navigate("story")}>Fetch Jira details</Button>
+          <Button onClick={() => navigate("generate")}>Generate AI test cases</Button>
+          {testCases.length > 0 && <Button onClick={() => navigate("publish")}>Publish to Zephyr & link</Button>}
+          <Button onClick={() => navigate("traceability")}>QA coverage map</Button>
         </div>
       </Card>
 

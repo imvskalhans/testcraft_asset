@@ -13,7 +13,7 @@ import JenkinsLogPage from "./pages/JenkinsLogPage";
 import { useState } from "react";
 
 function AppRouter() {
-  const { page, navigate, currentUser, error, success, loading } = useApp();
+  const { page, navigate, currentUser, error, success, loading, aiLoading, testCases } = useApp();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const pages = {
@@ -41,6 +41,8 @@ function AppRouter() {
       onFeedback={() => setFeedbackOpen(true)}
       onCloseFeedback={() => setFeedbackOpen(false)}
       showGlobalMessages={page !== "publish"}
+      hasTestCases={testCases.length > 0}
+      aiLoading={aiLoading}
     >
       {pages[page] ?? pages.home}
     </AppLayout>

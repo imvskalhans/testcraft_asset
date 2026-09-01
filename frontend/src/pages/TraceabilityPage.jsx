@@ -74,6 +74,7 @@ function StoryRow({ story, expanded, onToggle }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
               <strong style={{ fontSize: 13 }}>{story.storyKey}</strong>
+              {story.issueType && <StatusBadge ok label={story.issueType} />}
               <StatusBadge ok={story.hasCoverage} label={story.hasCoverage ? "Coverage" : "No coverage"} />
               <StatusBadge ok={story.hasCycles} label={story.hasCycles ? "Cycles" : "No cycles"} />
               {story.fullyTraced && <StatusBadge ok label="Fully traced" />}
@@ -249,10 +250,9 @@ export default function TraceabilityPage() {
 
   return (
     <>
-      <Card title="Load traceability" step={1}>
+      <Card title="Build a QA coverage report" step={1}>
         <p style={{ marginTop: 0, color: colors.muted, fontSize: 12, lineHeight: 1.6 }}>
-          Enter a change request or story key. TestCraft loads linked stories, Zephyr coverage links,
-          test cycles, and cycle executions, then highlights gaps.
+          Enter any Jira work-item key — story, change request, epic, task, or sub-task. TestCraft detects its type, checks the right Jira/Zephyr relationships, and highlights missing test coverage or execution.
         </p>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input
@@ -267,6 +267,7 @@ export default function TraceabilityPage() {
             {loading ? "Loading…" : "Load dashboard"}
           </Button>
         </div>
+        {loading && <Alert type="info">Building the traceability report: reading Jira stories, Zephyr coverage links, test cycles, and executions…</Alert>}
         {error && <Alert>{error}</Alert>}
       </Card>
 
@@ -274,7 +275,10 @@ export default function TraceabilityPage() {
         <>
           <Card title="Release overview" step={2}>
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>{dashboard.issueKey}</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 14, fontWeight: 700 }}>
+                {dashboard.issueKey}
+                {dashboard.issueType && <StatusBadge ok label={dashboard.issueType} />}
+              </div>
               <div style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>
                 {dashboard.issueSummary}
                 {dashboard.issueStatus ? ` · ${dashboard.issueStatus}` : ""}
@@ -294,7 +298,7 @@ export default function TraceabilityPage() {
                 marginBottom: 14,
               }}
             >
-              <StatCard label="Linked stories" value={dashboard.totalStories} tone="brand" />
+              <StatCard label="Tracked work items" value={dashboard.totalStories} tone="brand" />
               <StatCard label="With coverage" value={`${dashboard.storiesWithCoverage} (${coveragePct}%)`} tone={coveragePct === 100 ? "success" : "default"} />
               <StatCard label="With cycles" value={`${dashboard.storiesWithCycles} (${cyclePct}%)`} tone={cyclePct === 100 ? "success" : "default"} />
               <StatCard label="Fully traced" value={`${dashboard.storiesFullyTraced} (${tracedPct}%)`} tone={tracedPct === 100 ? "success" : "danger"} />
@@ -314,7 +318,7 @@ export default function TraceabilityPage() {
             )}
           </Card>
 
-          <Card title="Story traceability" step={3}>
+          <Card title="Work-item coverage details" step={3}>
             <p style={{ marginTop: 0, color: colors.muted, fontSize: 12 }}>
               {dashboard.message}
             </p>

@@ -155,6 +155,8 @@ public class ConfigController {
         status.put("provider", ai.getProvider());
         status.put("mockMode", aiClient.isMockMode());
         status.put("configured", aiClient.isConfigured());
+        status.put("imageInputSupported", aiClient.supportsImageInput());
+        status.put("textAttachmentSupported", true);
         return status;
     }
 

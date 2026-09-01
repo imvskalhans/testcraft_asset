@@ -1,5 +1,8 @@
 package com.acc.testcraft_backend.client;
 
+import com.acc.testcraft_backend.model.AiAttachment;
+import java.util.List;
+
 /**
  * Provider-independent AI client interface.
  * Implementations: AzureOpenAiClient, GeminiClient, GroqClient.
@@ -11,6 +14,15 @@ public interface AiClient {
 
     /** Send a prompt and return the generated text. */
     String generate(String prompt);
+
+    default String generate(String prompt, List<AiAttachment> attachments) {
+        if (attachments != null && !attachments.isEmpty()) {
+            throw new IllegalArgumentException("The configured AI provider does not support image attachments.");
+        }
+        return generate(prompt);
+    }
+
+    default boolean supportsImageInput() { return false; }
 
     /** Whether the provider credentials are fully configured. */
     boolean isConfigured();

@@ -6,6 +6,7 @@ import com.acc.testcraft_backend.model.AiActionDefinition;
 import com.acc.testcraft_backend.model.AiActionInputField;
 import com.acc.testcraft_backend.model.AiActionRunRequest;
 import com.acc.testcraft_backend.model.AiActionRunResponse;
+import com.acc.testcraft_backend.model.AiAttachment;
 import com.acc.testcraft_backend.model.JiraStory;
 import com.acc.testcraft_backend.model.LinkedStory;
 import com.acc.testcraft_backend.model.ReleaseProcess;
@@ -17,6 +18,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class AiActionsService {
@@ -82,13 +85,23 @@ public class AiActionsService {
                     request.getIssueKey(),
                     request.getCrKey()
             );
+            List<AiAttachment> attachments = sanitizeAttachments(request.getAttachments());
+            if (attachments.stream().anyMatch(a -> a.getMimeType().startsWith("image/"))
+                    && !aiClient.supportsImageInput()) {
+                throw new IllegalArgumentException("Your configured AI provider ('" + aiClient.getProvider()
+                        + "') does not support image attachments. Remove the images or switch to a vision-capable provider such as Gemini or OpenAI.");
+            }
+            String attachmentText = attachmentText(attachments);
+            if (!attachmentText.isBlank()) resolvedPrompt += "\n\nAttached text files:\n" + attachmentText;
             response.setResolvedPrompt(resolvedPrompt);
 
             if (aiClient.isMockMode()) {
                 response.setResult(mockResult(action, sanitizedInputs, jiraContext, crContext, request.getIssueKey(), request.getCrKey()));
                 response.setMockMode(true);
             } else {
-                response.setResult(aiClient.generate(resolvedPrompt));
+                response.setResult(aiClient.generate(resolvedPrompt, attachments.stream()
+                        .filter(a -> a.getMimeType().startsWith("image/"))
+                        .toList()));
                 response.setMockMode(false);
             }
 
@@ -103,6 +116,36 @@ public class AiActionsService {
             response.setError("AI action failed: " + e.getMessage());
             return response;
         }
+    }
+
+    private List<AiAttachment> sanitizeAttachments(List<AiAttachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) return List.of();
+        if (attachments.size() > 5) throw new IllegalArgumentException("Attach up to 5 files at a time");
+        for (AiAttachment attachment : attachments) {
+            if (attachment == null || attachment.getData() == null || attachment.getData().isBlank())
+                throw new IllegalArgumentException("Each attachment must contain file data");
+            String mime = attachment.getMimeType() == null ? "" : attachment.getMimeType().toLowerCase(Locale.ROOT);
+            if (!mime.startsWith("image/") && !mime.startsWith("text/") && !mime.equals("application/json") && !mime.equals("text/csv"))
+                throw new IllegalArgumentException("Unsupported attachment type. Use an image or a text/JSON/CSV file.");
+            if (attachment.getData().length() > 8_000_000) throw new IllegalArgumentException("Attachment is too large (maximum 6 MB)");
+            attachment.setMimeType(mime);
+        }
+        return attachments;
+    }
+
+    private String attachmentText(List<AiAttachment> attachments) {
+        StringBuilder text = new StringBuilder();
+        for (AiAttachment attachment : attachments) {
+            if (attachment.getMimeType().startsWith("image/")) continue;
+            try {
+                String data = attachment.getData().contains(",") ? attachment.getData().substring(attachment.getData().indexOf(',') + 1) : attachment.getData();
+                text.append("\n--- ").append(attachment.getName()).append(" ---\n")
+                        .append(new String(Base64.getDecoder().decode(data), StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Could not read attachment " + attachment.getName());
+            }
+        }
+        return text.toString();
     }
 
     private Map<String, AiActionDefinition> buildActions() {
@@ -192,7 +235,7 @@ public class AiActionsService {
                 "Test data generator",
                 "Generate structured test data from a scenario description.",
                 "general",
-                false,
+                true,
                 false,
                 """
                 Generate practical test data for manual or automated testing.
@@ -203,6 +246,9 @@ public class AiActionsService {
 
                 Extra constraints:
                 {{user_ask}}
+
+                Jira story context (if provided):
+                {{jira_context}}
                 """,
                 field("user_input", "Scenario description", "textarea",
                         "Describe the feature, fields, and validation rules", true, 6000),

@@ -4,6 +4,7 @@ import Alert from "../ui/Alert";
 import { inputStyle } from "../../styles/forms";
 import { colors } from "../../constants/theme";
 import { loadPromptOverride, resetPromptOverride, savePromptOverride } from "../../utils/aiPromptStorage";
+import AttachmentPicker from "./AttachmentPicker";
 
 function InlineMarkdown({ text }) {
   const renderInline = (value) => value.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, index) => {
@@ -34,6 +35,7 @@ export default function AiActionPanel({
   hasRelease,
   running,
   result,
+  supportsImageInput,
   onRun,
 }) {
   const savedPrompt = useMemo(
@@ -43,9 +45,9 @@ export default function AiActionPanel({
   const [inputs, setInputs] = useState({});
   const [promptTemplate, setPromptTemplate] = useState("");
   const [showPrompt, setShowPrompt] = useState(false);
-  const [showResolvedPrompt, setShowResolvedPrompt] = useState(false);
   const [resultText, setResultText] = useState("");
   const [showPreview, setShowPreview] = useState(true);
+  const [attachments, setAttachments] = useState([]);
 
   useEffect(() => {
     if (!action) return;
@@ -56,9 +58,9 @@ export default function AiActionPanel({
     setInputs(nextInputs);
     setPromptTemplate(savedPrompt || action.defaultPromptTemplate || "");
     setShowPrompt(false);
-    setShowResolvedPrompt(false);
     setResultText("");
     setShowPreview(true);
+    setAttachments([]);
   }, [action, hasStory, hasRelease, savedPrompt]);
 
   useEffect(() => {
@@ -104,6 +106,7 @@ export default function AiActionPanel({
       crKey,
       crDetails: includeCrContext ? releaseText : "",
       inputs,
+      attachments,
     });
   };
 
@@ -134,6 +137,12 @@ export default function AiActionPanel({
         </label>
       ))}
 
+      <AttachmentPicker
+        attachments={attachments}
+        setAttachments={setAttachments}
+        supportsImageInput={supportsImageInput}
+      />
+
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         <Button onClick={() => setShowPrompt((value) => !value)}>
           {showPrompt ? "Hide prompt template" : "View / edit prompt"}
@@ -163,19 +172,6 @@ export default function AiActionPanel({
           <p style={{ fontSize: 11, color: colors.muted, margin: "8px 0 0" }}>
             Placeholders: <code>{"{{user_input}}"}</code>, <code>{"{{user_ask}}"}</code>, <code>{"{{dom}}"}</code>, <code>{"{{issue_key}}"}</code>, <code>{"{{jira_context}}"}</code>, <code>{"{{cr_key}}"}</code>, <code>{"{{cr_context}}"}</code>
           </p>
-        </div>
-      )}
-
-      {result?.resolvedPrompt && (
-        <div style={{ marginBottom: 12 }}>
-          <Button onClick={() => setShowResolvedPrompt((value) => !value)}>
-            {showResolvedPrompt ? "Hide resolved prompt" : "View resolved prompt"}
-          </Button>
-          {showResolvedPrompt && (
-            <pre style={{ marginTop: 10, padding: 12, background: colors.surface, borderRadius: 8, overflow: "auto", fontSize: 11, lineHeight: 1.45 }}>
-              {result.resolvedPrompt}
-            </pre>
-          )}
         </div>
       )}
 

@@ -6,6 +6,7 @@ import com.acc.testcraft_backend.model.JiraStory;
 import com.acc.testcraft_backend.model.TestCase;
 import com.acc.testcraft_backend.model.TestGenerationRequest;
 import com.acc.testcraft_backend.model.TestGenerationResponse;
+import com.acc.testcraft_backend.model.AiAttachment;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class TestGenerationService {
@@ -37,6 +40,9 @@ public class TestGenerationService {
                 try {
                     JiraStory story = jiraClient.fetchIssue(request.getIssueKey());
                     context = buildStoryContext(story);
+                    if (request.getAttachments() == null || request.getAttachments().isEmpty()) {
+                        request.setAttachments(story.getAttachments());
+                    }
                 } catch (Exception e) {
                     context = "Issue key: " + request.getIssueKey()
                             + "\n(Jira details unavailable — using mock context)";
@@ -50,8 +56,14 @@ public class TestGenerationService {
                 return response;
             }
 
+            List<AiAttachment> attachments = sanitizeAttachments(request.getAttachments());
             String prompt = buildPrompt(request, context);
-            String raw = aiClient.generate(prompt);
+            String attachmentText = attachmentText(attachments);
+            if (!attachmentText.isBlank()) prompt += "\n\nAttached Jira/user text files:\n" + attachmentText;
+            if (attachments.stream().anyMatch(a -> a.getMimeType().startsWith("image/")) && !aiClient.supportsImageInput()) {
+                throw new IllegalArgumentException("The configured AI provider does not support image attachments. Remove images or switch to a vision-capable provider.");
+            }
+            String raw = aiClient.generate(prompt, attachments.stream().filter(a -> a.getMimeType().startsWith("image/")).toList());
             response.setRawResponse(raw);
 
             List<TestCase> cases = parseTestCases(raw, request.getTestType());
@@ -64,6 +76,31 @@ public class TestGenerationService {
             response.setTestCases(mockTestCases(request));
             return response;
         }
+    }
+
+    private List<AiAttachment> sanitizeAttachments(List<AiAttachment> attachments) {
+        if (attachments == null || attachments.isEmpty()) return List.of();
+        if (attachments.size() > 5) throw new IllegalArgumentException("Attach up to 5 files at a time");
+        for (AiAttachment attachment : attachments) {
+            if (attachment == null || attachment.getData() == null || attachment.getData().isBlank()) throw new IllegalArgumentException("Each attachment must contain file data");
+            String mime = attachment.getMimeType() == null ? "" : attachment.getMimeType().toLowerCase();
+            if (!mime.startsWith("image/") && !mime.startsWith("text/") && !mime.equals("application/json") && !mime.equals("text/csv")) throw new IllegalArgumentException("Unsupported attachment type. Use an image or text/JSON/CSV file.");
+            if (attachment.getData().length() > 8_000_000) throw new IllegalArgumentException("Attachment is too large (maximum 6 MB)");
+            attachment.setMimeType(mime);
+        }
+        return attachments;
+    }
+
+    private String attachmentText(List<AiAttachment> attachments) {
+        StringBuilder text = new StringBuilder();
+        for (AiAttachment attachment : attachments) {
+            if (attachment.getMimeType().startsWith("image/")) continue;
+            try {
+                String data = attachment.getData().contains(",") ? attachment.getData().substring(attachment.getData().indexOf(',') + 1) : attachment.getData();
+                text.append("\n--- ").append(attachment.getName()).append(" ---\n").append(new String(Base64.getDecoder().decode(data), StandardCharsets.UTF_8));
+            } catch (Exception e) { throw new IllegalArgumentException("Could not read attachment " + attachment.getName()); }
+        }
+        return text.toString();
     }
 
     private String buildPrompt(TestGenerationRequest request, String context) {
@@ -126,6 +163,11 @@ public class TestGenerationService {
                     Keep steps short and executable.
                     """;
         };
+
+        if (request.getAdditionalInstructions() != null && !request.getAdditionalInstructions().isBlank()) {
+            style += "\n\nAdditional instructions from the QA engineer:\n"
+                    + request.getAdditionalInstructions().trim();
+        }
 
         return """
                 You are a QA engineer generating test cases that will be published to Zephyr Scale.

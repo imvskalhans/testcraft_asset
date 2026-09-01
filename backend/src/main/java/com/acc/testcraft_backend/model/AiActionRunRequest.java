@@ -2,6 +2,8 @@ package com.acc.testcraft_backend.model;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public class AiActionRunRequest {
 
@@ -14,6 +16,7 @@ public class AiActionRunRequest {
     private String crKey;
     private String crDetails;
     private Map<String, String> inputs = new LinkedHashMap<>();
+    private List<AiAttachment> attachments = new ArrayList<>();
 
     public String getActionId() {
         return actionId;
@@ -86,4 +89,7 @@ public class AiActionRunRequest {
     public void setInputs(Map<String, String> inputs) {
         this.inputs = inputs;
     }
+
+    public List<AiAttachment> getAttachments() { return attachments; }
+    public void setAttachments(List<AiAttachment> attachments) { this.attachments = attachments; }
 }

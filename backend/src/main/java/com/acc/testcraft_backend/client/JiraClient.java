@@ -6,6 +6,7 @@ import com.acc.testcraft_backend.config.IntegrationUrls;
 import com.acc.testcraft_backend.config.JiraProperties;
 import com.acc.testcraft_backend.config.ZephyrProperties;
 import com.acc.testcraft_backend.model.JiraStory;
+import com.acc.testcraft_backend.model.AiAttachment;
 import com.acc.testcraft_backend.model.LinkedStory;
 import com.acc.testcraft_backend.model.ReleaseProcess;
 import com.acc.testcraft_backend.model.TestCase;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 @Component
 public class JiraClient {
@@ -115,6 +117,7 @@ public class JiraClient {
             if (story.getComments().isEmpty()) {
                 story.setComments(fetchComments(issueKey));
             }
+            story.setAttachments(fetchAttachments(fields));
 
             return story;
         } catch (HttpClientErrorException.NotFound e) {
@@ -129,6 +132,45 @@ public class JiraClient {
                     e
             );
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<AiAttachment> fetchAttachments(Map<String, Object> fields) {
+        Object raw = fields.get("attachment");
+        if (!(raw instanceof List<?> list)) return new ArrayList<>();
+        List<AiAttachment> attachments = new ArrayList<>();
+        int totalBytes = 0;
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> rawMap)) continue;
+            Map<String, Object> map = (Map<String, Object>) rawMap;
+            String name = String.valueOf(map.getOrDefault("filename", "Jira attachment"));
+            String mime = String.valueOf(map.getOrDefault("mimeType", "application/octet-stream"));
+            String contentUrl = String.valueOf(map.getOrDefault("content", ""));
+            AiAttachment attachment = new AiAttachment();
+            attachment.setName(name);
+            attachment.setMimeType(mime);
+            attachment.setUrl(contentUrl);
+            Object sizeValue = map.get("size");
+            int size = sizeValue instanceof Number ? ((Number) sizeValue).intValue() : 0;
+            if (size > 6_000_000 || totalBytes + size > 20_000_000 || contentUrl.isBlank()) {
+                attachments.add(attachment);
+                continue;
+            }
+            try {
+                ResponseEntity<byte[]> download = restTemplate.exchange(
+                        contentUrl, HttpMethod.GET, new HttpEntity<>(authHeaders()), byte[].class);
+                byte[] bytes = download.getBody();
+                if (bytes != null && bytes.length <= 6_000_000) {
+                    attachment.setData(Base64.getEncoder().encodeToString(bytes));
+                    totalBytes += bytes.length;
+                }
+            } catch (Exception e) {
+                System.err.println("Could not download Jira attachment " + name + ": " + e.getMessage());
+            }
+            attachments.add(attachment);
+            if (attachments.size() >= 5) break;
+        }
+        return attachments;
     }
 
     /**

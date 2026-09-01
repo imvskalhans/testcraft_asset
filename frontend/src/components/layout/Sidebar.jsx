@@ -2,7 +2,7 @@ import { colors } from "../../constants/theme";
 import { NAV_ITEMS } from "../../constants/navigation";
 import { initials } from "../../utils/initials";
 
-export default function Sidebar({ page, onNavigate, currentUser, onFeedback }) {
+export default function Sidebar({ page, onNavigate, currentUser, onFeedback, hasTestCases }) {
   return (
     <aside
       className="app-sidebar"
@@ -37,26 +37,38 @@ export default function Sidebar({ page, onNavigate, currentUser, onFeedback }) {
       </div>
 
       <nav style={{ flex: 1 }}>
-        {NAV_ITEMS.map((n) => (
-          <div
-            className="nav-item"
-            key={n.id}
-            onClick={() => onNavigate(n.id)}
-            style={{
-              padding: "9px 10px",
-              borderRadius: 8,
-              marginBottom: 4,
-              cursor: "pointer",
-              background: page === n.id ? colors.brandLight : "transparent",
-              color: page === n.id ? colors.brand : colors.muted,
-              fontWeight: page === n.id ? 600 : 400,
-              fontSize: 13,
-            }}
-          >
+        {NAV_ITEMS.filter((n) => n.id !== "publish" || hasTestCases).map((n, index, items) => (
+          <div key={n.id}>
+            {(index === 0 || items[index - 1].group !== n.group) && (
+              <div style={{ padding: "12px 10px 5px", color: colors.muted, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                {n.group}
+              </div>
+            )}
+            <button
+              type="button"
+              className="nav-item"
+              onClick={() => onNavigate(n.id)}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                border: 0,
+                padding: "9px 10px",
+                borderRadius: 8,
+                marginBottom: 4,
+                cursor: "pointer",
+                background: page === n.id ? colors.brandLight : "transparent",
+                color: page === n.id ? colors.brand : colors.muted,
+                fontWeight: page === n.id ? 600 : 400,
+                fontSize: 13,
+              }}
+              aria-current={page === n.id ? "page" : undefined}
+            >
               <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                 {n.label}
                 {n.status && <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 5px", borderRadius: 5, background: "#FFF3D6", color: "#8A5A00" }}>{n.status}</span>}
               </span>
+            </button>
           </div>
         ))}
       </nav>

@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.acc.testcraft_backend.model.AiAttachment;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,6 +38,11 @@ public class GeminiClient implements AiClient {
 
     @Override
     public String generate(String prompt) {
+        return generate(prompt, List.of());
+    }
+
+    @Override
+    public String generate(String prompt, List<AiAttachment> attachments) {
         if (isMockMode()) {
             throw new IllegalStateException(
                     "Gemini is not configured — set ai.gemini.api-key in application-local.properties");
@@ -51,7 +57,7 @@ public class GeminiClient implements AiClient {
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         try {
-            String requestJson = mapper.writeValueAsString(buildRequestBody(prompt));
+            String requestJson = mapper.writeValueAsString(buildRequestBody(prompt, attachments));
             ResponseEntity<String> response = restTemplate.exchange(
                     url, HttpMethod.POST, new HttpEntity<>(requestJson, headers), String.class);
             return extractResponseText(response.getBody());
@@ -62,12 +68,18 @@ public class GeminiClient implements AiClient {
         }
     }
 
-    private Map<String, Object> buildRequestBody(String prompt) {
+    private Map<String, Object> buildRequestBody(String prompt, List<AiAttachment> attachments) {
         Map<String, Object> systemInstruction = new LinkedHashMap<>();
         systemInstruction.put("parts", List.of(Map.of("text", properties.getSystemPrompt())));
         Map<String, Object> userContent = new LinkedHashMap<>();
         userContent.put("role", "user");
-        userContent.put("parts", List.of(Map.of("text", prompt == null ? "" : prompt)));
+        List<Map<String, Object>> parts = new ArrayList<>();
+        parts.add(Map.of("text", prompt == null ? "" : prompt));
+        for (AiAttachment attachment : attachments == null ? List.<AiAttachment>of() : attachments) {
+            if (attachment.getMimeType() == null || !attachment.getMimeType().startsWith("image/")) continue;
+            parts.add(Map.of("inlineData", Map.of("mimeType", attachment.getMimeType(), "data", attachment.getData())));
+        }
+        userContent.put("parts", parts);
         Map<String, Object> generationConfig = new LinkedHashMap<>();
         generationConfig.put("temperature", properties.getTemperature());
         generationConfig.put("topP", 0.95);
@@ -78,6 +90,8 @@ public class GeminiClient implements AiClient {
         body.put("generationConfig", generationConfig);
         return body;
     }
+
+    @Override public boolean supportsImageInput() { return true; }
 
     private String extractResponseText(String body) {
         try {

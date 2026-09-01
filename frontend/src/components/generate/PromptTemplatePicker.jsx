@@ -4,6 +4,14 @@ import { inputStyle } from "../../styles/forms";
 import { colors } from "../../constants/theme";
 import { PROMPT_TYPES } from "../../constants/options";
 
+const BUILTIN_PROMPTS = {
+  default: "Cover the main happy path and the most important negative case. Keep steps short and executable.",
+  advanced: "Cover happy path, negative path, boundary, authorization, and data validation. Make each test independently executable.",
+  smoke: "Focus on the fastest critical-path checks needed to confirm the story is basically working. Keep steps short and avoid deep edge-case exploration.",
+  security: "Cover authentication, authorization, session handling, input validation, injection risks, sensitive data exposure, and unsafe defaults. Include negative tests for unauthorized access and malformed input.",
+  api: "Cover request/response contracts, required headers, status codes, validation errors, pagination or filtering behavior, idempotency where relevant, and backward compatibility. Make steps explicit about endpoint, method, payload, and expected response.",
+};
+
 function TemplateCard({ active, label, hint, onClick, onDelete }) {
   return (
     <button
@@ -58,18 +66,25 @@ export default function PromptTemplatePicker({
   setPromptType,
   customPrompt,
   setCustomPrompt,
+  additionalPrompt,
+  setAdditionalPrompt,
   savedTemplates,
   onSaveTemplate,
   onDeleteTemplate,
 }) {
   const [saveOpen, setSaveOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [showPrompt, setShowPrompt] = useState(false);
 
   const selectedSaved = useMemo(
     () => (promptType.startsWith("saved:") ? savedTemplates.find((item) => `saved:${item.id}` === promptType) : null),
     [promptType, savedTemplates],
   );
-  const effectivePrompt = selectedSaved?.prompt || customPrompt;
+  const effectivePrompt = selectedSaved?.prompt
+    || (promptType === "custom" ? customPrompt : "")
+    || BUILTIN_PROMPTS[promptType]
+    || "";
+  const displayedPrompt = effectivePrompt;
 
   const openSaveDialog = () => {
     setTemplateName(selectedSaved?.name ? `${selectedSaved.name} copy` : "");
@@ -86,9 +101,16 @@ export default function PromptTemplatePicker({
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 8 }}>
         <div style={{ fontSize: 12, fontWeight: 600 }}>Prompt template</div>
-        <Button onClick={openSaveDialog} disabled={!effectivePrompt.trim()}>
-          Save current prompt
-        </Button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <Button onClick={() => setShowPrompt((value) => !value)}>
+            {showPrompt ? "Hide prompt" : "View / edit prompt"}
+          </Button>
+          {showPrompt && (
+            <Button onClick={openSaveDialog} disabled={!displayedPrompt.trim()}>
+              Save prompt locally
+            </Button>
+          )}
+        </div>
       </div>
 
       <div
@@ -136,25 +158,38 @@ export default function PromptTemplatePicker({
         </>
       )}
 
-      {(promptType === "custom" || selectedSaved) && (
+      {showPrompt && (
         <textarea
-          aria-label="Custom prompt instructions"
-          style={{ ...inputStyle, minHeight: 96, marginBottom: 8, width: "100%" }}
-          value={selectedSaved ? selectedSaved.prompt : customPrompt}
+          aria-label="Generation prompt"
+          style={{ ...inputStyle, minHeight: 140, marginBottom: 8, width: "100%", boxSizing: "border-box", lineHeight: 1.5 }}
+          value={displayedPrompt}
           onChange={(e) => {
-            if (selectedSaved) {
-              setPromptType("custom");
-            }
+            setPromptType("custom");
             setCustomPrompt(e.target.value);
           }}
-          readOnly={Boolean(selectedSaved)}
           placeholder="Describe extra coverage, data, environments, or acceptance criteria focus…"
         />
       )}
 
-      {selectedSaved && (
+      <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginTop: 12 }}>
+        Additional instructions (optional)
+        <textarea
+          aria-label="Additional generation instructions"
+          style={{ ...inputStyle, minHeight: 78, marginTop: 6, width: "100%", boxSizing: "border-box", lineHeight: 1.5 }}
+          value={additionalPrompt}
+          onChange={(e) => setAdditionalPrompt(e.target.value)}
+          placeholder="Add coverage, data, environments, acceptance criteria, or constraints without replacing the selected prompt…"
+        />
+        <span style={{ display: "block", marginTop: 5, fontSize: 11, color: colors.muted }}>
+          These instructions are added after the selected prompt when test cases are generated.
+        </span>
+      </label>
+
+      {showPrompt && (
         <p style={{ margin: "0 0 8px", fontSize: 11, color: colors.muted }}>
-          Using saved template <strong>{selectedSaved.name}</strong>. Edit the text to switch to a custom prompt.
+          {selectedSaved
+            ? <>Using saved template <strong>{selectedSaved.name}</strong>. Editing it switches to a custom prompt.</>
+            : "This is the instruction portion of the generation prompt. The server adds the story context and JSON output rules."}
         </p>
       )}
 

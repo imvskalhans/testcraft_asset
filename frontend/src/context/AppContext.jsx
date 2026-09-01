@@ -10,25 +10,33 @@ import { loadAppStats, recordAppStat, resetAppStats } from "../utils/appStats";
 
 const AppContext = createContext(null);
 
-function resolveGenerationPrompt(promptType, customPrompt, savedTemplates) {
+function resolveGenerationPrompt(promptType, customPrompt, savedTemplates, additionalPrompt) {
   if (promptType.startsWith("saved:")) {
     const templateId = promptType.slice("saved:".length);
     const template = savedTemplates.find((item) => item.id === templateId);
     return {
       promptType: "template",
       customPrompt: template?.prompt || "",
+      additionalPrompt: additionalPrompt?.trim() || undefined,
     };
   }
   if (promptType === "custom") {
     return {
       promptType: "custom",
       customPrompt: customPrompt.trim() || undefined,
+      additionalPrompt: additionalPrompt?.trim() || undefined,
     };
   }
   return {
     promptType,
     customPrompt: undefined,
+    additionalPrompt: additionalPrompt?.trim() || undefined,
   };
+}
+
+function isSupportedAttachment(attachment) {
+  const mime = attachment?.mimeType || "";
+  return mime.startsWith("image/") || mime.startsWith("text/") || ["application/json", "text/csv"].includes(mime) || /\.(txt|md|csv|json)$/i.test(attachment?.name || "");
 }
 
 function updatePublishItem(items, index, patch) {
@@ -63,6 +71,8 @@ export function AppProvider({ children }) {
   const [testType, setTestType] = useState("Functional");
   const [promptType, setPromptType] = useState("default");
   const [customPrompt, setCustomPrompt] = useState("");
+  const [additionalPrompt, setAdditionalPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const [savedPromptTemplates, setSavedPromptTemplates] = useState([]);
   const [appStats, setAppStats] = useState(() => loadAppStats());
   const [publishing, setPublishing] = useState(false);
@@ -159,7 +169,16 @@ export function AppProvider({ children }) {
 
   const clearMsg = () => { setError(null); setSuccess(null); };
 
-  const navigate = (id) => { setPage(id); clearMsg(); };
+  const navigate = (id) => {
+    if (id === "publish" && !testCases.length) {
+      setPage("generate");
+      setError("Generate or import test cases before opening Publish & Link.");
+      setSuccess(null);
+      return;
+    }
+    setPage(id);
+    clearMsg();
+  };
 
   const updateTestCase = (index, field, value) => {
     setTestCases((prev) => prev.map((tc, i) => (i === index ? { ...tc, [field]: value } : tc)));
@@ -319,15 +338,17 @@ export function AppProvider({ children }) {
     setSuccess(`AI result posted as a Jira comment on ${key}`);
   });
 
-  const doGenerate = () => run(async () => {
+  const doGenerate = (userAttachments = []) => run(async () => {
     const count = Math.max(1, Number(testCount) || 1);
-    const prompt = resolveGenerationPrompt(promptType, customPrompt, savedPromptTemplates);
+    const prompt = resolveGenerationPrompt(promptType, customPrompt, savedPromptTemplates, additionalPrompt);
     const data = await api.generate({
       issueKey,
       testType,
       testCount: count,
       promptType: prompt.promptType,
       customPrompt: prompt.customPrompt,
+      additionalInstructions: prompt.additionalPrompt,
+      attachments: [...userAttachments, ...(story?.attachments ?? []).filter((attachment) => attachment.data && isSupportedAttachment(attachment))].slice(0, 5),
       jiraDetails: storyText || undefined,
     });
     setTestCases((data.testCases ?? []).map((tc) => ({
@@ -619,6 +640,8 @@ export function AppProvider({ children }) {
     testType, setTestType,
     promptType, setPromptType,
     customPrompt, setCustomPrompt,
+    additionalPrompt, setAdditionalPrompt,
+    aiLoading, setAiLoading,
     savedPromptTemplates,
     saveCurrentPromptTemplate,
     removePromptTemplate,

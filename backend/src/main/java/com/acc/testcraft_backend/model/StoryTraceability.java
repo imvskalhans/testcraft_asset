@@ -8,6 +8,7 @@ public class StoryTraceability {
     private String storyKey;
     private String storySummary;
     private String storyStatus;
+    private String issueType;
     private String jiraUrl;
     private boolean hasCoverage;
     private boolean hasCycles;
@@ -42,6 +43,9 @@ public class StoryTraceability {
     public void setStoryStatus(String storyStatus) {
         this.storyStatus = storyStatus;
     }
+
+    public String getIssueType() { return issueType; }
+    public void setIssueType(String issueType) { this.issueType = issueType; }
 
     public String getJiraUrl() {
         return jiraUrl;

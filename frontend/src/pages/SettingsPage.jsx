@@ -109,7 +109,7 @@ export default function SettingsPage() {
             ? `✓ ${configStatus.zephyr.defaultProjectKey} (${configStatus.zephyr.defaultProjectId || "project ID missing"})`
             : "○ Set the default project key and numeric project ID"}</div>
           <div><strong>Folders:</strong> Select a project on Publish & Link and confirm folders load before publishing.</div>
-          <div><strong>AI:</strong> {configStatus?.ai?.mockMode ? "Using mock mode — configure an AI provider for live generation" : "Ready for test generation"}</div>
+          <div><strong>AI:</strong> {configStatus?.ai?.mockMode ? "Using mock mode — configure an AI provider for live generation" : `Ready for test generation (${configStatus?.ai?.provider || "provider"}${configStatus?.ai?.imageInputSupported ? "; image input supported" : "; image input unavailable"})`}</div>
         </div>
         <p style={{ color: colors.muted, fontSize: 11, lineHeight: 1.5, margin: "10px 0 0" }}>
           This page intentionally shows connection state, URLs, project IDs, and account IDs only. Secrets are used by the backend and are never rendered in the UI.

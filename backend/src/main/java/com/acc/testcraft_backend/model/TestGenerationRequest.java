@@ -1,5 +1,8 @@
 package com.acc.testcraft_backend.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class TestGenerationRequest {
 
     private String issueKey;
@@ -8,6 +11,8 @@ public class TestGenerationRequest {
     private String jiraDetails;
     private String promptType;
     private String customPrompt;
+    private String additionalInstructions;
+    private List<AiAttachment> attachments = new ArrayList<>();
 
     public String getIssueKey() {
         return issueKey;
@@ -56,4 +61,15 @@ public class TestGenerationRequest {
     public void setCustomPrompt(String customPrompt) {
         this.customPrompt = customPrompt;
     }
+
+    public String getAdditionalInstructions() {
+        return additionalInstructions;
+    }
+
+    public void setAdditionalInstructions(String additionalInstructions) {
+        this.additionalInstructions = additionalInstructions;
+    }
+
+    public List<AiAttachment> getAttachments() { return attachments; }
+    public void setAttachments(List<AiAttachment> attachments) { this.attachments = attachments; }
 }

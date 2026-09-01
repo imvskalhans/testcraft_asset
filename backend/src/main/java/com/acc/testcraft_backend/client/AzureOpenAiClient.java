@@ -65,6 +65,8 @@ public class AzureOpenAiClient extends OpenAiCompatibleClient {
         }
     }
 
+    @Override public boolean supportsImageInput() { return false; }
+
     private static String endpoint(AiProperties.Azure a) {
         if (a.getOpenAiEndpoint() != null && !a.getOpenAiEndpoint().isBlank()) return a.getOpenAiEndpoint();
         String base = a.getGatewayUrl().replaceAll("/$", "");

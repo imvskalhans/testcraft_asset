@@ -2,7 +2,6 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Alert from "../components/ui/Alert";
 import TestCaseList from "../components/testcases/TestCaseList";
-import TestCaseImportExport from "../components/testcases/TestCaseImportExport";
 import PublishProgress from "../components/publish/PublishProgress";
 import { inputStyle } from "../styles/forms";
 import { colors } from "../constants/theme";
@@ -11,31 +10,26 @@ import { useApp } from "../context/AppContext";
 
 export default function PublishPage() {
   const {
-    loading, publishing, ownerName, issueKey, testType, testCases, expandedCase, setExpandedCase, story,
+    loading, publishing, ownerName, testCases, expandedCase, setExpandedCase, story,
     updateTestCase, updateStep, addStep, removeStep, removeTestCase, defaultStatus,
     projectError, folderError, folderWarning, projects, folders,
     selectedProject, setSelectedProject, selectedFolder, setSelectedFolder,
     publishedKeys, publishedTestCaseLinks, linkIssueKeys, setLinkIssueKeys,
     publishAll, retryFailedPublishes, publishProgress, linkPublished,
-    publishMessage, linkMessage, importTestCases,
+    publishMessage, linkMessage, navigate,
   } = useApp();
 
   const folderEntries = Object.entries(folders);
 
   return (
     <>
-      <Card title="Generated test cases to publish" step={1}>
-        <TestCaseImportExport
-          testCases={testCases}
-          issueKey={issueKey}
-          testType={testType}
-          onImport={importTestCases}
-          disabled={loading || publishing}
-        />
-        {!testCases.length && <Alert type="info">Generate or import test cases first.</Alert>}
+      <Card title="Publish generated cases to Zephyr" step={1} actions={<Button onClick={() => navigate("generate")}>← Generate AI Test Cases</Button>}>
+        {!testCases.length && (
+          <Alert type="info">Generate or import test cases first. <Button onClick={() => navigate("generate")}>Go to Generate AI Test Cases</Button></Alert>
+        )}
         {testCases.length > 0 && (
           <>
-            <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>Owner: {ownerName}. Edit any field before publishing.</p>
+            <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>Owner: {ownerName}. Review and edit any field before publishing to Zephyr Scale. TestCraft currently publishes test cases to Zephyr only.</p>
             <TestCaseList
               testCases={testCases}
               expandedCase={expandedCase}
@@ -77,7 +71,7 @@ export default function PublishPage() {
         </div>
         <div style={{ marginTop: 14 }}>
           <Button primary disabled={loading || publishing || !testCases.length} onClick={publishAll}>
-            {publishing ? "Publishing…" : "Publish to Zephyr"}
+            {publishing ? "Publishing to Zephyr…" : "Publish to Zephyr Scale"}
           </Button>
         </div>
         <PublishProgress

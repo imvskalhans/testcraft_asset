@@ -4,6 +4,7 @@ import com.acc.testcraft_backend.client.ZephyrClient;
 import com.acc.testcraft_backend.config.JiraProperties;
 import com.acc.testcraft_backend.model.CycleTraceability;
 import com.acc.testcraft_backend.model.LinkedStory;
+import com.acc.testcraft_backend.model.JiraStory;
 import com.acc.testcraft_backend.model.LinkedTestCaseRef;
 import com.acc.testcraft_backend.model.ReleaseProcess;
 import com.acc.testcraft_backend.model.StoryTraceability;
@@ -40,18 +41,24 @@ public class TraceabilityService {
         }
 
         String normalizedKey = issueKey.trim().toUpperCase();
-        ReleaseProcess release = releaseProcessService.fetchChangeTicket(normalizedKey);
-        List<LinkedStory> linkedStories = release.getLinkedStories();
-        if (linkedStories == null || linkedStories.isEmpty()) {
-            linkedStories = List.of(selfStory(release));
+        JiraStory rootIssue = releaseProcessService.fetchIssue(normalizedKey);
+        String rootType = rootIssue.getIssueType();
+        List<LinkedStory> linkedStories;
+        if (isContainerIssue(rootType)) {
+            ReleaseProcess release = releaseProcessService.fetchChangeTicket(normalizedKey);
+            linkedStories = release.getLinkedStories();
+            if (linkedStories == null || linkedStories.isEmpty()) linkedStories = List.of(selfStory(rootIssue));
+        } else {
+            linkedStories = List.of(selfStory(rootIssue));
         }
 
         TraceabilityDashboardResponse response = new TraceabilityDashboardResponse();
         response.setSuccess(true);
-        response.setIssueKey(release.getCrKey());
-        response.setIssueSummary(release.getCrSummary());
-        response.setIssueStatus(release.getStatus());
-        response.setJiraUrl(jiraBrowseUrl(release.getCrKey()));
+        response.setIssueKey(normalizedKey);
+        response.setIssueSummary(rootIssue.getSummary());
+        response.setIssueStatus(rootIssue.getStatus());
+        response.setIssueType(rootType);
+        response.setJiraUrl(jiraBrowseUrl(normalizedKey));
 
         List<StoryTraceability> stories = new ArrayList<>();
         int storiesWithCoverage = 0;
@@ -88,16 +95,16 @@ public class TraceabilityService {
         if (storiesWithCoverage < linkedStories.size()) {
             releaseGaps.add(
                     (linkedStories.size() - storiesWithCoverage)
-                            + " stor"
-                            + (linkedStories.size() - storiesWithCoverage == 1 ? "y has" : "ies have")
+                            + " work item"
+                            + (linkedStories.size() - storiesWithCoverage == 1 ? " has" : "s have")
                             + " no linked test cases"
             );
         }
         if (storiesWithCycles < linkedStories.size()) {
             releaseGaps.add(
                     (linkedStories.size() - storiesWithCycles)
-                            + " stor"
-                            + (linkedStories.size() - storiesWithCycles == 1 ? "y has" : "ies have")
+                            + " work item"
+                            + (linkedStories.size() - storiesWithCycles == 1 ? " has" : "s have")
                             + " no test cycles"
             );
         }
@@ -114,8 +121,8 @@ public class TraceabilityService {
         response.setMessage(
                 "Traceability loaded for "
                         + linkedStories.size()
-                        + " stor"
-                        + (linkedStories.size() == 1 ? "y" : "ies")
+                        + " work item"
+                        + (linkedStories.size() == 1 ? "" : "s")
                         + " — "
                         + storiesFullyTraced
                         + " fully traced"
@@ -128,6 +135,7 @@ public class TraceabilityService {
         trace.setStoryKey(story.getKey());
         trace.setStorySummary(story.getSummary());
         trace.setStoryStatus(story.getStatus());
+        trace.setIssueType(story.getIssueType());
         trace.setJiraUrl(jiraBrowseUrl(story.getKey()));
 
         List<LinkedTestCaseRef> linkedTestCases =
@@ -179,10 +187,10 @@ public class TraceabilityService {
         boolean hasExecutions = executionCount > 0;
 
         if (!hasCoverage) {
-            gaps.add("No test cases linked to this story");
+            gaps.add("No test cases linked to this work item");
         }
         if (!hasCycles) {
-            gaps.add("No test cycles found for this story");
+            gaps.add("No test cycles found for this work item");
         } else if (!hasExecutions) {
             gaps.add("Cycles exist but no test executions were found");
         }
@@ -230,13 +238,20 @@ public class TraceabilityService {
         return executions;
     }
 
-    private LinkedStory selfStory(ReleaseProcess release) {
+    private LinkedStory selfStory(JiraStory issue) {
         LinkedStory self = new LinkedStory();
-        self.setId(release.getCrId());
-        self.setKey(release.getCrKey());
-        self.setSummary(release.getCrSummary());
-        self.setStatus(release.getStatus());
+        self.setId(issue.getId());
+        self.setKey(issue.getId());
+        self.setSummary(issue.getSummary());
+        self.setIssueType(issue.getIssueType());
+        self.setStatus(issue.getStatus());
+        self.setPriority(issue.getPriority());
         return self;
+    }
+
+    private boolean isContainerIssue(String issueType) {
+        String type = issueType == null ? "" : issueType.trim().toLowerCase();
+        return type.contains("change request") || type.equals("epic") || type.equals("release");
     }
 
     private String jiraBrowseUrl(String issueKey) {

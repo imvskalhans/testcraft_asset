@@ -44,6 +44,8 @@ public class GroqClient implements AiClient {
         return "groq";
     }
 
+    @Override public boolean supportsImageInput() { return false; }
+
     @Override
     public String generate(String prompt) {
         if (isMockMode()) {

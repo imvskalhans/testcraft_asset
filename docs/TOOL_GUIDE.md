@@ -17,13 +17,13 @@ Jira issue
 
 ## Screens
 
-### Jira Story
+### Fetch Jira Details
 
 Enter a key such as `KAN-7` and choose **Fetch**. TestCraft loads the summary, issue type, status, priority, description, acceptance criteria, labels, and comments. Jira rich-text/ADF fields are converted to readable text.
 
 The fetched issue is reused as AI context. The second card can post a QA comment back to Jira.
 
-### Generate Tests
+### Generate AI Test Cases
 
 Choose the number of cases, test type, and prompt style. The AI is asked to return structured JSON containing:
 
@@ -37,13 +37,15 @@ Choose the number of cases, test type, and prompt style. The AI is asked to retu
 
 Cases are drafts until reviewed. Every field and step can be edited, added, removed, or reordered through the UI. Mock mode produces predictable sample cases without an AI credential.
 
-### Publish & Link
+### Publish to Zephyr & Link
 
 The publish screen has three stages:
 
 1. Review generated cases.
 2. Select a Zephyr project and test-case folder.
-3. Publish cases and link their returned keys to Jira issues.
+3. Publish cases to Zephyr Scale and link their returned Zephyr keys to Jira issues.
+
+TestCraft currently publishes test cases to Zephyr only; Jira is used for the related traceability links.
 
 For Scale Cloud, publishing works in two API operations:
 
@@ -54,11 +56,11 @@ This second operation is required by Zephyr for step-by-step scripts. The publis
 
 Test-case links are coverage links. They are visible from both the Jira issue and Zephyr test-case sides. Repeating a link is treated as already linked.
 
-### Test Cycles
+### Test Cycle Generation
 
 #### Fetch
 
-Fetching a new change request/story loads its linked stories and existing cycles. It also clears the previous cycle results and link fields so the page cannot show stale data from another story.
+Entering a change request/story loads its linked stories and any existing cycles. Finding existing cycles is informational: if none exist, TestCraft can create new ones. It also clears the previous cycle results and link fields so the page cannot show stale data from another story.
 
 #### Create
 
