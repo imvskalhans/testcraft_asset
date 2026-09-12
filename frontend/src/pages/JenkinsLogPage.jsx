@@ -5,18 +5,26 @@ import Alert from "../components/ui/Alert";
 import { inputStyle } from "../styles/forms";
 import { colors } from "../constants/theme";
 import api from "../api";
+import { useApp } from "../context/AppContext";
 
 export default function JenkinsLogPage() {
+  const { busyJob, beginBusyJob, endBusyJob } = useApp();
   const [url, setUrl] = useState("");
   const [focus, setFocus] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const otherAiRunning = Boolean(busyJob?.exclusiveAi && busyJob.page !== "jenkins-log");
   const run = async () => {
+    const jobId = "jenkins-log";
     setLoading(true); setError(""); setResult(null);
+    beginBusyJob({ id: jobId, title: "Analyzing Jenkins log with AI", page: "jenkins-log", exclusiveAi: true });
     try { setResult(await api.jenkinsLog({ url: url.trim(), focus: focus.trim() || undefined })); }
     catch (e) { setError(e.message); }
-    finally { setLoading(false); }
+    finally {
+      setLoading(false);
+      endBusyJob(jobId);
+    }
   };
   return <>
     <Alert type="info">Upcoming feature preview — the workflow is wired for Jenkins console analysis, but is not ready for production use yet.</Alert>
@@ -28,7 +36,8 @@ export default function JenkinsLogPage() {
       <label style={{ display: "block", fontSize: 12, marginBottom: 12 }}>Optional focus
         <input aria-label="Jenkins review focus" style={{ ...inputStyle, width: "100%", marginTop: 5 }} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. test failures, deployment, flaky tests" />
       </label>
-      <Button primary disabled={loading || !url.trim()} onClick={run}>{loading ? "Fetching and analyzing…" : "Fetch & analyze log"}</Button>
+      <Button primary disabled={loading || otherAiRunning || !url.trim()} onClick={run}>{loading ? "Fetching and analyzing…" : result ? "Fetch & analyze again" : "Fetch & analyze log"}</Button>
+      {result && <Button disabled={loading} onClick={() => { setResult(null); setError(""); }} style={{ marginLeft: 8 }}>Clear report</Button>}
       {error && <div style={{ marginTop: 12 }}><Alert>{error}</Alert></div>}
     </Card>
     {result && <Card title="Jenkins report" step={2}>

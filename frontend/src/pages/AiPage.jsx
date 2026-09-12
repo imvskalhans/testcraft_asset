@@ -34,11 +34,16 @@ export default function AiPage() {
     issueKey, setIssueKey, story, storyText, loading, fetchForAi, postAiComment,
     crKey, setCrKey, release, fetchCrForAi, configStatus,
     setAiLoading,
+    beginBusyJob,
+    endBusyJob,
+    busyJob,
+    pendingAiAction, setPendingAiAction,
+    activeAiAction, setActiveAiAction,
   } = useApp();
 
   const [actions, setActions] = useState([]);
   const [actionsError, setActionsError] = useState("");
-  const [activeActionId, setActiveActionId] = useState("");
+  const [activeActionId, setActiveActionId] = useState(activeAiAction || "");
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState("");
   const [result, setResult] = useState(null);
@@ -52,6 +57,16 @@ export default function AiPage() {
       .then((data) => setActions(data.actions ?? []))
       .catch((e) => setActionsError(e.message || "Unable to load AI actions"));
   }, []);
+
+  useEffect(() => {
+    if (!pendingAiAction || !actions.length) return;
+    setActiveActionId(pendingAiAction);
+    setActiveAiAction(pendingAiAction);
+    setResult(null);
+    setRunError("");
+    setActionInfoOpen(false);
+    setPendingAiAction("");
+  }, [pendingAiAction, actions, setPendingAiAction, setActiveAiAction]);
 
   const activeAction = useMemo(
     () => actions.find((action) => action.id === activeActionId) ?? null,
@@ -73,6 +88,7 @@ export default function AiPage() {
 
   const openAction = (actionId) => {
     setActiveActionId(actionId);
+    setActiveAiAction(actionId);
     setResult(null);
     setRunError("");
     setActionInfoOpen(false);
@@ -80,14 +96,31 @@ export default function AiPage() {
 
   const backToPicker = () => {
     setActiveActionId("");
+    setActiveAiAction("");
     setResult(null);
     setRunError("");
     setActionInfoOpen(false);
+    setEmailOpen(false);
+    setJiraCommentOpen(false);
+  };
+
+  const clearResult = () => {
+    setResult(null);
+    setRunError("");
+    setEmailOpen(false);
+    setJiraCommentOpen(false);
   };
 
   const runAction = async (payload) => {
+    const jobId = "ai-action";
     setRunning(true);
     setAiLoading(true);
+    beginBusyJob({
+      id: jobId,
+      title: `Running AI: ${activeAction?.label || "action"}`,
+      page: "ai",
+      exclusiveAi: true,
+    });
     setRunError("");
     setResult(null);
     try {
@@ -105,6 +138,7 @@ export default function AiPage() {
     } finally {
       setRunning(false);
       setAiLoading(false);
+      endBusyJob(jobId);
     }
   };
 
@@ -119,6 +153,7 @@ export default function AiPage() {
       <Card title="AI Workspace">
         <p style={{ marginTop: 0, marginBottom: 16, fontSize: 13, color: colors.muted, lineHeight: 1.6 }}>
           Choose a focused AI workspace. Add Jira or change-request context when useful, plus supported image or text attachments.
+          Switching sidebar tabs keeps this workspace as you left it, including a running action.
         </p>
         {actionsError && <div style={{ marginBottom: 12 }}><Alert>{actionsError}</Alert></div>}
         <AiActionPicker actions={actions} onSelect={openAction} />
@@ -133,12 +168,13 @@ export default function AiPage() {
         actions={(
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <InfoIcon onClick={() => setActionInfoOpen((value) => !value)} title={`About ${activeAction.label}`} />
-            <Button primary onClick={backToPicker}>← All AI Workspaces</Button>
+            {result && <Button onClick={clearResult} disabled={running}>Clear result</Button>}
+            <Button primary onClick={backToPicker} disabled={running}>← All AI Workspaces</Button>
           </div>
         )}
       >
         <p style={{ marginTop: 0, marginBottom: 4, fontSize: 12, color: colors.muted, lineHeight: 1.6 }}>
-          {activeAction.description}
+          {activeAction.description} You can switch tabs and come back to this result. Clear result or All AI Workspaces starts a new task.
         </p>
         {actionInfoOpen && <Alert type="info"><strong>How this workspace helps:</strong> {activeAction.description} Use the inputs below to give the AI task-specific details; loaded Jira/change-request context and supported attachments are included automatically.</Alert>}
 
@@ -166,7 +202,8 @@ export default function AiPage() {
           crKey={crKey}
           releaseText={releaseText}
           hasRelease={Boolean(release)}
-          running={running}
+          running={running || Boolean(busyJob?.exclusiveAi && busyJob.page !== "ai")}
+          blocked={Boolean(busyJob?.exclusiveAi && busyJob.page !== "ai")}
           result={result}
           supportsImageInput={Boolean(configStatus?.ai?.imageInputSupported)}
           onRun={runAction}

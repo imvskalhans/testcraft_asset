@@ -18,6 +18,10 @@ public class TraceabilityDashboardResponse {
     private int totalLinkedTestCases;
     private int totalCycles;
     private int totalExecutions;
+    private int totalPassed;
+    private int totalFailed;
+    private int totalBlocked;
+    private int totalNotExecuted;
     private List<String> gaps = new ArrayList<>();
     private List<StoryTraceability> stories = new ArrayList<>();
     private String message;
@@ -126,6 +130,15 @@ public class TraceabilityDashboardResponse {
     public void setTotalExecutions(int totalExecutions) {
         this.totalExecutions = totalExecutions;
     }
+
+    public int getTotalPassed() { return totalPassed; }
+    public void setTotalPassed(int totalPassed) { this.totalPassed = totalPassed; }
+    public int getTotalFailed() { return totalFailed; }
+    public void setTotalFailed(int totalFailed) { this.totalFailed = totalFailed; }
+    public int getTotalBlocked() { return totalBlocked; }
+    public void setTotalBlocked(int totalBlocked) { this.totalBlocked = totalBlocked; }
+    public int getTotalNotExecuted() { return totalNotExecuted; }
+    public void setTotalNotExecuted(int totalNotExecuted) { this.totalNotExecuted = totalNotExecuted; }
 
     public List<String> getGaps() {
         return gaps;

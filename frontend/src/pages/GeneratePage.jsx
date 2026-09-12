@@ -14,7 +14,7 @@ import SkippedAttachmentsNotice from "../components/ai/SkippedAttachmentsNotice"
 
 export default function GeneratePage() {
   const {
-    issueKey, ownerName, loading, doGenerate,
+    issueKey, ownerName, loading, doGenerate, busyJob,
     testCount, setTestCount, testType, setTestType,
     promptType, setPromptType, customPrompt, setCustomPrompt,
     additionalPrompt, setAdditionalPrompt,
@@ -23,15 +23,21 @@ export default function GeneratePage() {
     updateTestCase, updateStep, addStep, removeStep, removeTestCase, defaultStatus,
   } = useApp();
   const [attachments, setAttachments] = useState([]);
+  const otherAiRunning = Boolean(busyJob?.exclusiveAi && busyJob.page !== "generate");
 
   return (
     <Card title="Generate AI test cases" actions={(
       <div style={{ display: "flex", gap: 8 }}>
         {testCases.length > 0 && <Button onClick={() => navigate("publish")}>Continue to Publish & Link →</Button>}
-        <Button primary disabled={loading} onClick={() => doGenerate(attachments)}>Generate</Button>
+        <Button primary disabled={loading || otherAiRunning} onClick={() => doGenerate(attachments)}>Generate</Button>
       </div>
     )}>
       <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>Uses story {issueKey}. Review generated cases here, then continue to publish them to Zephyr Scale. Owner: {ownerName}.</p>
+      {otherAiRunning && (
+        <p style={{ fontSize: 12, color: colors.muted, marginTop: 0 }}>
+          Another AI request is still running. Wait for it to finish before generating test cases.
+        </p>
+      )}
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>How many test cases?</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>

@@ -36,24 +36,13 @@ export default function AiActionPicker({ actions, onSelect }) {
         <button
           key={action.id}
           type="button"
+          className="glass-card"
           onClick={() => onSelect(action.id)}
           style={{
             textAlign: "left",
             padding: 16,
-            borderRadius: 12,
-            border: `1px solid ${colors.border}`,
-            background: "#fff",
+            borderRadius: 16,
             cursor: "pointer",
-            transition: "border-color 0.15s ease, box-shadow 0.15s ease",
-            boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = colors.brand;
-            e.currentTarget.style.boxShadow = "0 4px 12px rgba(24,95,165,0.12)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = colors.border;
-            e.currentTarget.style.boxShadow = "0 1px 2px rgba(16,24,40,0.04)";
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>

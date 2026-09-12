@@ -5,6 +5,7 @@ import Alert from "../components/ui/Alert";
 import { inputStyle } from "../styles/forms";
 import { colors } from "../constants/theme";
 import api from "../api";
+import { useApp } from "../context/AppContext";
 
 function Markdown({ text }) {
   return <div style={{ lineHeight: 1.55 }}>{String(text || "").split(/\r?\n/).map((line, i) => {
@@ -17,6 +18,7 @@ function Markdown({ text }) {
 }
 
 export default function PRReviewPage() {
+  const { busyJob, beginBusyJob, endBusyJob } = useApp();
   const [url, setUrl] = useState("");
   const [focus, setFocus] = useState("");
   const [result, setResult] = useState(null);
@@ -25,13 +27,19 @@ export default function PRReviewPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const otherAiRunning = Boolean(busyJob?.exclusiveAi && busyJob.page !== "pr-review");
   const runReview = async () => {
+    const jobId = "pr-review";
     setLoading(true); setError(""); setResult(null);
+    beginBusyJob({ id: jobId, title: "Reviewing pull request with AI", page: "pr-review", exclusiveAi: true });
     try {
       const data = await api.prReview({ url: url.trim(), focus: focus.trim() || undefined });
       setResult(data); setEditedReview(data.review || "");
     } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
+    finally {
+      setLoading(false);
+      endBusyJob(jobId);
+    }
   };
 
   return <>
@@ -46,7 +54,8 @@ export default function PRReviewPage() {
       <label style={{ display: "block", fontSize: 12, marginBottom: 12 }}>Optional review focus
         <input aria-label="Optional review focus" style={{ ...inputStyle, width: "100%", marginTop: 5 }} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. authentication, database migrations, API compatibility" />
       </label>
-      <Button primary disabled={loading || !url.trim()} onClick={runReview}>{loading ? "Fetching and analyzing…" : "Fetch & review PR"}</Button>
+      <Button primary disabled={loading || otherAiRunning || !url.trim()} onClick={runReview}>{loading ? "Fetching and analyzing…" : result ? "Fetch & review again" : "Fetch & review PR"}</Button>
+      {result && <Button disabled={loading} onClick={() => { setResult(null); setEditedReview(""); setError(""); }} style={{ marginLeft: 8 }}>Clear review</Button>}
       {error && <div style={{ marginTop: 12 }}><Alert>{error}</Alert></div>}
     </Card>
     {result && <>

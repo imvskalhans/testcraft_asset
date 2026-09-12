@@ -34,6 +34,7 @@ export default function AiActionPanel({
   releaseText,
   hasRelease,
   running,
+  blocked,
   result,
   supportsImageInput,
   onRun,
@@ -79,7 +80,7 @@ export default function AiActionPanel({
   const includeCrContext = Boolean(action.supportsCrContext && (hasRelease || crKey?.trim()));
   const jiraReady = !action.supportsJiraContext || includeJiraContext;
   const crReady = !action.supportsCrContext || includeCrContext;
-  const canRun = !running && requiredFilled && jiraReady && crReady;
+  const canRun = !running && !blocked && requiredFilled && jiraReady && crReady;
 
   const updateInput = (fieldId, value) => {
     setInputs((current) => ({ ...current, [fieldId]: value }));
@@ -143,6 +144,12 @@ export default function AiActionPanel({
         supportsImageInput={supportsImageInput}
       />
 
+      {blocked && (
+        <div style={{ marginBottom: 12 }}>
+          <Alert type="info">Another AI request is still running. Wait for it to finish before starting this action.</Alert>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         <Button onClick={() => setShowPrompt((value) => !value)}>
           {showPrompt ? "Hide prompt template" : "View / edit prompt"}
@@ -154,7 +161,7 @@ export default function AiActionPanel({
           </>
         )}
         <Button primary disabled={!canRun} onClick={runAction}>
-          {running ? "Running…" : `Run ${action.label}`}
+          {running ? "Running…" : blocked ? "Wait for other AI request" : `Run ${action.label}`}
         </Button>
       </div>
 
@@ -167,10 +174,11 @@ export default function AiActionPanel({
             aria-label="Prompt template"
             style={{ ...inputStyle, width: "100%", minHeight: 220, boxSizing: "border-box", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, lineHeight: 1.5 }}
             value={promptTemplate}
+            maxLength={12000}
             onChange={(e) => setPromptTemplate(e.target.value)}
           />
           <p style={{ fontSize: 11, color: colors.muted, margin: "8px 0 0" }}>
-            Placeholders: <code>{"{{user_input}}"}</code>, <code>{"{{user_ask}}"}</code>, <code>{"{{dom}}"}</code>, <code>{"{{issue_key}}"}</code>, <code>{"{{jira_context}}"}</code>, <code>{"{{cr_key}}"}</code>, <code>{"{{cr_context}}"}</code>
+            Placeholders: <code>{"{{user_input}}"}</code>, <code>{"{{user_ask}}"}</code>, <code>{"{{dom}}"}</code>, <code>{"{{framework}}"}</code>, <code>{"{{issue_key}}"}</code>, <code>{"{{jira_context}}"}</code>, <code>{"{{cr_key}}"}</code>, <code>{"{{cr_context}}"}</code>, <code>{"{{output_format}}"}</code>, <code>{"{{record_count}}"}</code>, <code>{"{{release_version}}"}</code>, <code>{"{{release_date}}"}</code>
           </p>
         </div>
       )}

@@ -1,15 +1,51 @@
+import { useEffect, useMemo, useState } from "react";
 import { colors } from "../../constants/theme";
 import { NAV_ITEMS } from "../../constants/navigation";
 import { initials } from "../../utils/initials";
+import { useApp } from "../../context/AppContext";
+
+function toggleKey(current, key) {
+  const next = new Set(current);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  return next;
+}
 
 export default function Sidebar({ page, onNavigate, currentUser, onFeedback, hasTestCases }) {
+  const { activeAiAction } = useApp();
+  const groups = useMemo(() => {
+    const visible = NAV_ITEMS.filter((item) => item.group && (item.id !== "publish" || hasTestCases));
+    const ordered = [];
+    visible.forEach((item) => {
+      const current = ordered[ordered.length - 1];
+      if (!current || current.name !== item.group) {
+        ordered.push({ name: item.group, items: [item] });
+      } else {
+        current.items.push(item);
+      }
+    });
+    return ordered;
+  }, [hasTestCases]);
+
+  const homeItem = NAV_ITEMS.find((item) => item.id === "home");
+  const activeGroup = groups.find((group) => group.items.some((item) => item.id === page))?.name;
+  const [openGroups, setOpenGroups] = useState(() => new Set(groups.map((group) => group.name)));
+  const [openNested, setOpenNested] = useState(() => new Set(["ai"]));
+
+  useEffect(() => {
+    if (activeGroup) {
+      setOpenGroups((current) => new Set(current).add(activeGroup));
+    }
+    if (page === "ai") {
+      setOpenNested((current) => new Set(current).add("ai"));
+    }
+  }, [activeGroup, page]);
+
   return (
     <aside
       className="app-sidebar"
       style={{
-        width: 228,
-        background: colors.card,
-        borderRight: `1px solid ${colors.border}`,
+        width: 248,
         padding: 16,
         display: "flex",
         flexDirection: "column",
@@ -36,44 +72,102 @@ export default function Sidebar({ page, onNavigate, currentUser, onFeedback, has
         </div>
       </div>
 
-      <nav style={{ flex: 1 }}>
-        {NAV_ITEMS.filter((n) => n.id !== "publish" || hasTestCases).map((n, index, items) => (
-          <div key={n.id}>
-            {(index === 0 || items[index - 1].group !== n.group) && (
-              <div style={{ padding: "12px 10px 5px", color: colors.muted, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {n.group}
-              </div>
-            )}
-            <button
-              type="button"
-              className="nav-item"
-              onClick={() => onNavigate(n.id)}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                border: 0,
-                padding: "9px 10px",
-                borderRadius: 8,
-                marginBottom: 4,
-                cursor: "pointer",
-                background: page === n.id ? colors.brandLight : "transparent",
-                color: page === n.id ? colors.brand : colors.muted,
-                fontWeight: page === n.id ? 600 : 400,
-                fontSize: 13,
-              }}
-              aria-current={page === n.id ? "page" : undefined}
-            >
-              <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                {n.label}
-                {n.status && <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 5px", borderRadius: 5, background: "#FFF3D6", color: "#8A5A00" }}>{n.status}</span>}
-              </span>
-            </button>
-          </div>
-        ))}
+      <nav style={{ flex: 1, overflow: "auto" }}>
+        {homeItem && (
+          <button
+            type="button"
+            className={`nav-home${page === "home" ? " active" : ""}`}
+            onClick={() => onNavigate("home")}
+            aria-current={page === "home" ? "page" : undefined}
+          >
+            {homeItem.label}
+          </button>
+        )}
+
+        {groups.map((group) => {
+          const open = openGroups.has(group.name);
+          return (
+            <div key={group.name} className="nav-group" style={{ marginBottom: 8 }}>
+              <button
+                type="button"
+                className="nav-group-heading"
+                aria-expanded={open}
+                onClick={() => setOpenGroups((current) => toggleKey(current, group.name))}
+              >
+                <span>{group.name}</span>
+                <span className="nav-group-chevron" aria-hidden="true">{open ? "▴" : "▾"}</span>
+              </button>
+              {open && group.items.map((item) => {
+                const nestedOpen = openNested.has(item.id);
+                const children = item.children || [];
+                if (children.length) {
+                  return (
+                    <div key={item.id}>
+                      <button
+                        type="button"
+                        className={`nav-nested-heading${page === item.id ? " active" : ""}`}
+                        aria-expanded={nestedOpen}
+                        onClick={() => {
+                          const next = toggleKey(openNested, item.id);
+                          setOpenNested(next);
+                          if (next.has(item.id) && page !== item.id) onNavigate(item.id);
+                        }}
+                      >
+                        <span>{item.label}</span>
+                        <span className="nav-group-chevron" aria-hidden="true">{nestedOpen ? "▴" : "▾"}</span>
+                      </button>
+                      {nestedOpen && (
+                        <div className="nav-children">
+                          {children.map((child) => (
+                            <button
+                              key={child.id}
+                              type="button"
+                              className={`nav-item nav-action${page === item.id && activeAiAction === child.id ? " active" : ""}`}
+                              onClick={() => onNavigate(item.id, { aiAction: child.id })}
+                              aria-current={page === item.id && activeAiAction === child.id ? "page" : undefined}
+                            >
+                              {child.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`nav-item${page === item.id ? " active" : ""}`}
+                    onClick={() => onNavigate(item.id)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      border: 0,
+                      padding: "9px 10px",
+                      borderRadius: 8,
+                      marginBottom: 4,
+                      cursor: "pointer",
+                      color: page === item.id ? colors.brand : colors.muted,
+                      fontWeight: page === item.id ? 600 : 400,
+                      fontSize: 13,
+                    }}
+                    aria-current={page === item.id ? "page" : undefined}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      {item.label}
+                      {item.status && <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 5px", borderRadius: 5, background: "#FFF3D6", color: "#8A5A00" }}>{item.status}</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
       </nav>
 
-      <button type="button" onClick={onFeedback} style={{ width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.card, color: colors.brand, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+      <button type="button" className="glass-footer-btn" onClick={onFeedback} style={{ width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: 8, color: colors.brand, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
         ✉ Send feedback
       </button>
 
@@ -83,8 +177,6 @@ export default function Sidebar({ page, onNavigate, currentUser, onFeedback, has
           display: "flex",
           gap: 8,
           alignItems: "center",
-          background: colors.surface,
-          border: `1px solid ${colors.border}`,
           borderRadius: 10,
           padding: 10,
           marginTop: 12,

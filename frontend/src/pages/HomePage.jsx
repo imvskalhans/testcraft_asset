@@ -13,10 +13,9 @@ function StatCard({ label, value, hint, tone = "default" }) {
   const style = tones[tone] ?? tones.default;
   return (
     <div
+      className="glass-card"
       style={{
-        background: style.bg,
-        border: `1px solid ${colors.border}`,
-        borderRadius: 12,
+        borderRadius: 14,
         padding: "16px 18px",
       }}
     >

@@ -5,12 +5,9 @@ export default function Card({ title, step, children, actions }) {
     <div
       className="card-shell"
       style={{
-        background: colors.card,
-        border: `1px solid ${colors.border}`,
-        borderRadius: 12,
+        borderRadius: 16,
         padding: 18,
         marginBottom: 14,
-        boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12, alignItems: "center" }}>

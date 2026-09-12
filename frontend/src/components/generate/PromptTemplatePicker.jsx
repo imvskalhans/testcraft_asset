@@ -3,14 +3,7 @@ import Button from "../ui/Button";
 import { inputStyle } from "../../styles/forms";
 import { colors } from "../../constants/theme";
 import { PROMPT_TYPES } from "../../constants/options";
-
-const BUILTIN_PROMPTS = {
-  default: "Cover the main happy path and the most important negative case. Keep steps short and executable.",
-  advanced: "Cover happy path, negative path, boundary, authorization, and data validation. Make each test independently executable.",
-  smoke: "Focus on the fastest critical-path checks needed to confirm the story is basically working. Keep steps short and avoid deep edge-case exploration.",
-  security: "Cover authentication, authorization, session handling, input validation, injection risks, sensitive data exposure, and unsafe defaults. Include negative tests for unauthorized access and malformed input.",
-  api: "Cover request/response contracts, required headers, status codes, validation errors, pagination or filtering behavior, idempotency where relevant, and backward compatibility. Make steps explicit about endpoint, method, payload, and expected response.",
-};
+import { BUILTIN_GENERATION_PROMPTS } from "../../constants/generationPrompts";
 
 function TemplateCard({ active, label, hint, onClick, onDelete }) {
   return (
@@ -82,7 +75,7 @@ export default function PromptTemplatePicker({
   );
   const effectivePrompt = selectedSaved?.prompt
     || (promptType === "custom" ? customPrompt : "")
-    || BUILTIN_PROMPTS[promptType]
+    || BUILTIN_GENERATION_PROMPTS[promptType]
     || "";
   const displayedPrompt = effectivePrompt;
 
@@ -161,13 +154,13 @@ export default function PromptTemplatePicker({
       {showPrompt && (
         <textarea
           aria-label="Generation prompt"
-          style={{ ...inputStyle, minHeight: 140, marginBottom: 8, width: "100%", boxSizing: "border-box", lineHeight: 1.5 }}
+          style={{ ...inputStyle, minHeight: 180, marginBottom: 8, width: "100%", boxSizing: "border-box", lineHeight: 1.5 }}
           value={displayedPrompt}
           onChange={(e) => {
             setPromptType("custom");
             setCustomPrompt(e.target.value);
           }}
-          placeholder="Describe extra coverage, data, environments, or acceptance criteria focus…"
+          placeholder="Write custom generation instructions, or edit a built-in profile and save it as a named template…"
         />
       )}
 
@@ -189,7 +182,7 @@ export default function PromptTemplatePicker({
         <p style={{ margin: "0 0 8px", fontSize: 11, color: colors.muted }}>
           {selectedSaved
             ? <>Using saved template <strong>{selectedSaved.name}</strong>. Editing it switches to a custom prompt.</>
-            : "This is the instruction portion of the generation prompt. The server adds the story context and JSON output rules."}
+            : "This is the selected profile's instruction. TestCraft still adds the Jira story and the Zephyr JSON output contract on the server. Editing here switches to Custom."}
         </p>
       )}
 
@@ -203,7 +196,7 @@ export default function PromptTemplatePicker({
           }}
         >
           <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
-            Template name
+            Save as a named profile
             <input
               aria-label="Template name"
               style={{ ...inputStyle, width: "100%", marginTop: 6 }}
@@ -211,6 +204,9 @@ export default function PromptTemplatePicker({
               onChange={(e) => setTemplateName(e.target.value)}
               placeholder="e.g. Payment smoke pack"
             />
+            <span style={{ display: "block", marginTop: 5, fontSize: 11, color: colors.muted }}>
+              Stored only in this browser. It appears under Saved templates and can be reused like Default or Smoke.
+            </span>
           </label>
           <div style={{ display: "flex", gap: 8 }}>
             <Button primary disabled={!templateName.trim() || !effectivePrompt.trim()} onClick={submitSave}>

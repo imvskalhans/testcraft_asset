@@ -15,14 +15,19 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,6 +43,7 @@ public class ZephyrClient {
     private final JiraClient jiraClient;
     private final ZephyrContextClient zephyrContextClient;
     private String lastFolderWarning = "";
+    private final ThreadLocal<BulkLookupCache> bulkLookup = new ThreadLocal<>();
 
     public ZephyrClient(
             RestTemplate restTemplate,
@@ -1145,6 +1151,14 @@ public class ZephyrClient {
         return testCase;
     }
 
+    public void beginBulkLookup() {
+        bulkLookup.set(new BulkLookupCache());
+    }
+
+    public void endBulkLookup() {
+        bulkLookup.remove();
+    }
+
     public List<TestCycle> searchTestCyclesByIssueKey(String issueKey) {
         if (issueKey == null || issueKey.isBlank()) {
             return new ArrayList<>();
@@ -1152,12 +1166,24 @@ public class ZephyrClient {
 
         try {
             if (isScaleCloudMode()) {
-                String projectKey = projectKeyFromIssue(issueKey);
-                List<TestCycle> cycles = listScaleCloudTestCycles(projectKey);
-                return cycles.stream()
-                        .filter(cycle -> cycle.getName() != null
-                                && cycle.getName().toUpperCase().startsWith(issueKey.toUpperCase() + " -"))
-                        .toList();
+                Map<String, TestCycle> byKey = new LinkedHashMap<>();
+                for (TestCycle cycle : listScaleCloudCyclesLinkedToIssue(issueKey)) {
+                    String key = cycleKey(cycle);
+                    if (!key.isBlank()) {
+                        byKey.put(key, cycle);
+                    }
+                }
+                String prefix = issueKey.toUpperCase(Locale.ROOT) + " -";
+                for (TestCycle cycle : cachedProjectCycles(projectKeyFromIssue(issueKey))) {
+                    String name = cycle.getName() == null ? "" : cycle.getName().toUpperCase(Locale.ROOT);
+                    if (name.startsWith(prefix)) {
+                        String key = cycleKey(cycle);
+                        if (!key.isBlank()) {
+                            byKey.putIfAbsent(key, cycle);
+                        }
+                    }
+                }
+                return new ArrayList<>(byKey.values());
             }
             return jiraClient.getTestRunsLinkedToIssue(issueKey);
         } catch (Exception e) {
@@ -1451,13 +1477,179 @@ public class ZephyrClient {
     }
 
     /** Find Scale Cloud test cases already covered by a Jira issue. */
-    @SuppressWarnings("unchecked")
     public List<String> getScaleCloudTestCaseKeysLinkedToIssue(String issueKey) {
         List<String> keys = new ArrayList<>();
+        for (LinkedTestCaseRef ref : getScaleCloudTestCasesLinkedToIssue(issueKey)) {
+            if (ref.getKey() != null && !ref.getKey().isBlank()) {
+                keys.add(ref.getKey());
+            }
+        }
+        return keys;
+    }
+
+    public List<LinkedTestCaseRef> getScaleCloudTestCasesLinkedToIssue(String issueKey) {
+        if (issueKey == null || issueKey.isBlank()) {
+            return new ArrayList<>();
+        }
+        List<LinkedTestCaseRef> fromIssueLink = listScaleCloudTestCasesLinkedToIssue(issueKey);
+        if (fromIssueLink != null) {
+            return enrichTestCaseNames(fromIssueLink);
+        }
+        return enrichTestCaseNames(crawlScaleCloudTestCasesLinkedToIssue(issueKey));
+    }
+
+    private List<LinkedTestCaseRef> listScaleCloudTestCasesLinkedToIssue(String issueKey) {
+        List<Map<String, Object>> items = listIssueLinkResources(issueKey, "testcases");
+        if (items == null) {
+            return null;
+        }
+        List<LinkedTestCaseRef> refs = new ArrayList<>();
+        for (Map<String, Object> item : items) {
+            String key = firstNonBlank(item.get("key"), item.get("testCaseKey"));
+            if (key.isBlank() && item.get("testCase") instanceof Map<?, ?> nested && nested.get("key") != null) {
+                key = String.valueOf(nested.get("key"));
+            }
+            if (key.isBlank()) {
+                continue;
+            }
+            LinkedTestCaseRef ref = new LinkedTestCaseRef();
+            ref.setKey(key);
+            ref.setName(firstNonBlank(item.get("name"), item.get("testCaseName")));
+            ref.setUrl(buildScaleCloudTestCaseUrl(key));
+            refs.add(ref);
+        }
+        return refs;
+    }
+
+    private List<TestCycle> listScaleCloudCyclesLinkedToIssue(String issueKey) {
+        List<Map<String, Object>> items = listIssueLinkResources(issueKey, "testcycles");
+        if (items == null) {
+            return List.of();
+        }
+        List<TestCycle> cycles = new ArrayList<>();
+        for (Map<String, Object> item : items) {
+            TestCycle cycle = new TestCycle();
+            cycle.setId(firstNonBlank(item.get("id")));
+            String key = firstNonBlank(item.get("key"), item.get("testCycleKey"));
+            if (key.isBlank() && item.get("testCycle") instanceof Map<?, ?> nested) {
+                key = firstNonBlank(nested.get("key"), nested.get("testCycleKey"));
+            }
+            cycle.setKey(key);
+            cycle.setName(firstNonBlank(item.get("name")));
+            Object status = item.get("status");
+            if (status instanceof Map<?, ?> statusMap && statusMap.get("name") != null) {
+                cycle.setStatus(String.valueOf(statusMap.get("name")));
+            } else {
+                cycle.setStatus(firstNonBlank(item.get("statusName")));
+            }
+            if (!cycleKey(cycle).isBlank()) {
+                cycles.add(cycle);
+            }
+        }
+        return cycles;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> listIssueLinkResources(String issueKey, String resource) {
+        BulkLookupCache cache = bulkLookup.get();
+        String cacheKey = issueKey + ":" + resource;
+        if (cache != null && cache.issueLinks.containsKey(cacheKey)) {
+            return cache.issueLinks.get(cacheKey);
+        }
+        List<Map<String, Object>> values = null;
+        String[] paths = {
+                "/issuelinks/" + issueKey + "/" + resource,
+                "/issuelink/" + issueKey + "/" + resource
+        };
+        boolean available = false;
+        for (String path : paths) {
+            try {
+                values = pagedScaleValues(path);
+                available = true;
+                break;
+            } catch (HttpClientErrorException.NotFound e) {
+                available = false;
+            } catch (HttpClientErrorException e) {
+                if (e.getStatusCode().value() == 404 || e.getStatusCode().value() == 400) {
+                    available = false;
+                    continue;
+                }
+                System.err.println("Scale issue-link " + path + " failed: " + e.getMessage());
+                available = false;
+            } catch (Exception e) {
+                System.err.println("Scale issue-link " + path + " failed: " + e.getMessage());
+                available = false;
+            }
+        }
+        if (cache != null) {
+            cache.issueLinkAvailable.put(resource, available);
+            cache.issueLinks.put(cacheKey, values);
+        }
+        return values;
+    }
+
+    private boolean issueLinkEndpointAvailable(String resource) {
+        BulkLookupCache cache = bulkLookup.get();
+        return cache != null && Boolean.TRUE.equals(cache.issueLinkAvailable.get(resource));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> pagedScaleValues(String path) {
+        List<Map<String, Object>> values = new ArrayList<>();
+        int startAt = 0;
+        while (true) {
+            String url = scaleCloudBaseUrl() + path
+                    + (path.contains("?") ? "&" : "?")
+                    + "maxResults=100&startAt=" + startAt;
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authSupport.scaleCloudHeaders()), Map.class);
+            Map<String, Object> body = response.getBody();
+            if (body == null) {
+                break;
+            }
+            Object raw = body.get("values");
+            int batch = 0;
+            if (raw instanceof List<?> list) {
+                batch = list.size();
+                for (Object item : list) {
+                    if (item instanceof Map<?, ?> map) {
+                        values.add((Map<String, Object>) map);
+                    } else if (item != null) {
+                        Map<String, Object> wrapper = new LinkedHashMap<>();
+                        wrapper.put("key", String.valueOf(item));
+                        values.add(wrapper);
+                    }
+                }
+            }
+            if (Boolean.TRUE.equals(body.get("isLast")) || batch == 0) {
+                break;
+            }
+            startAt += 100;
+            if (startAt > 2000) {
+                break;
+            }
+        }
+        return values;
+    }
+
+    private List<LinkedTestCaseRef> crawlScaleCloudTestCasesLinkedToIssue(String issueKey) {
+        BulkLookupCache cache = bulkLookup.get();
         String issueId = jiraClient.getIssueId(issueKey);
         String projectKey = projectKeyFromIssue(issueKey);
-        int startAt = 0;
+        if (cache != null) {
+            ensureCrawlIndex(projectKey);
+            return copyRefs(cache.casesByIssueId.getOrDefault(issueId, List.of()));
+        }
+        return crawlScaleCloudTestCasesOnce(projectKey, issueId);
+    }
 
+    @SuppressWarnings("unchecked")
+    private void ensureCrawlIndex(String projectKey) {
+        BulkLookupCache cache = bulkLookup.get();
+        if (cache == null || cache.crawlBuilt) {
+            return;
+        }
+        int startAt = 0;
         while (true) {
             String url = scaleCloudBaseUrl() + "/testcases?projectKey=" + projectKey
                     + "&maxResults=100&startAt=" + startAt;
@@ -1472,20 +1664,82 @@ public class ZephyrClient {
                     continue;
                 }
                 String testCaseKey = String.valueOf(testCase.get("key"));
-                ResponseEntity<Map> linksResponse = restTemplate.exchange(
-                        scaleCloudBaseUrl() + "/testcases/" + testCaseKey + "/links",
-                        HttpMethod.GET,
-                        new HttpEntity<>(authSupport.scaleCloudHeaders()), Map.class);
-                Map links = linksResponse.getBody();
-                Object issues = links == null ? null : links.get("issues");
-                if (issues instanceof List<?> issueLinks) {
-                    for (Object issueLink : issueLinks) {
-                        if (issueLink instanceof Map<?, ?> link
-                                && issueId.equals(String.valueOf(link.get("issueId")))) {
-                            keys.add(testCaseKey);
-                            break;
+                String name = testCase.get("name") != null ? String.valueOf(testCase.get("name")) : "";
+                try {
+                    ResponseEntity<Map> linksResponse = restTemplate.exchange(
+                            scaleCloudBaseUrl() + "/testcases/" + testCaseKey + "/links",
+                            HttpMethod.GET,
+                            new HttpEntity<>(authSupport.scaleCloudHeaders()), Map.class);
+                    Map links = linksResponse.getBody();
+                    Object issues = links == null ? null : links.get("issues");
+                    if (issues instanceof List<?> issueLinks) {
+                        for (Object issueLink : issueLinks) {
+                            if (issueLink instanceof Map<?, ?> link && link.get("issueId") != null) {
+                                String linkedIssueId = String.valueOf(link.get("issueId"));
+                                LinkedTestCaseRef ref = new LinkedTestCaseRef();
+                                ref.setKey(testCaseKey);
+                                ref.setName(name);
+                                ref.setUrl(buildScaleCloudTestCaseUrl(testCaseKey));
+                                cache.casesByIssueId
+                                        .computeIfAbsent(linkedIssueId, ignored -> new ArrayList<>())
+                                        .add(ref);
+                                cache.caseNames.put(testCaseKey, name);
+                            }
                         }
                     }
+                } catch (Exception e) {
+                    System.err.println("Failed to read links for " + testCaseKey + ": " + e.getMessage());
+                }
+            }
+            if (Boolean.TRUE.equals(body.get("isLast")) || values.size() < 100) {
+                break;
+            }
+            startAt += 100;
+        }
+        cache.crawlBuilt = true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<LinkedTestCaseRef> crawlScaleCloudTestCasesOnce(String projectKey, String issueId) {
+        List<LinkedTestCaseRef> keys = new ArrayList<>();
+        int startAt = 0;
+        while (true) {
+            String url = scaleCloudBaseUrl() + "/testcases?projectKey=" + projectKey
+                    + "&maxResults=100&startAt=" + startAt;
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authSupport.scaleCloudHeaders()), Map.class);
+            Map body = response.getBody();
+            if (body == null || !(body.get("values") instanceof List<?> values)) {
+                break;
+            }
+            for (Object value : values) {
+                if (!(value instanceof Map<?, ?> testCase) || testCase.get("key") == null) {
+                    continue;
+                }
+                String testCaseKey = String.valueOf(testCase.get("key"));
+                String name = testCase.get("name") != null ? String.valueOf(testCase.get("name")) : "";
+                try {
+                    ResponseEntity<Map> linksResponse = restTemplate.exchange(
+                            scaleCloudBaseUrl() + "/testcases/" + testCaseKey + "/links",
+                            HttpMethod.GET,
+                            new HttpEntity<>(authSupport.scaleCloudHeaders()), Map.class);
+                    Map links = linksResponse.getBody();
+                    Object issues = links == null ? null : links.get("issues");
+                    if (issues instanceof List<?> issueLinks) {
+                        for (Object issueLink : issueLinks) {
+                            if (issueLink instanceof Map<?, ?> link
+                                    && issueId.equals(String.valueOf(link.get("issueId")))) {
+                                LinkedTestCaseRef ref = new LinkedTestCaseRef();
+                                ref.setKey(testCaseKey);
+                                ref.setName(name);
+                                ref.setUrl(buildScaleCloudTestCaseUrl(testCaseKey));
+                                keys.add(ref);
+                                break;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to read links for " + testCaseKey + ": " + e.getMessage());
                 }
             }
             if (Boolean.TRUE.equals(body.get("isLast")) || values.size() < 100) {
@@ -1494,6 +1748,97 @@ public class ZephyrClient {
             startAt += 100;
         }
         return keys;
+    }
+
+    private List<LinkedTestCaseRef> enrichTestCaseNames(List<LinkedTestCaseRef> refs) {
+        for (LinkedTestCaseRef ref : refs) {
+            if (ref.getName() != null && !ref.getName().isBlank()) {
+                continue;
+            }
+            String name = lookupScaleCloudTestCaseName(ref.getKey());
+            if (!name.isBlank()) {
+                ref.setName(name);
+            }
+        }
+        return refs;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String lookupScaleCloudTestCaseName(String testCaseKey) {
+        if (testCaseKey == null || testCaseKey.isBlank()) {
+            return "";
+        }
+        BulkLookupCache cache = bulkLookup.get();
+        if (cache != null && cache.caseNames.containsKey(testCaseKey)) {
+            return cache.caseNames.get(testCaseKey);
+        }
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    scaleCloudBaseUrl() + "/testcases/" + testCaseKey,
+                    HttpMethod.GET,
+                    new HttpEntity<>(authSupport.scaleCloudHeaders()),
+                    Map.class
+            );
+            Map<String, Object> body = response.getBody();
+            String name = body != null && body.get("name") != null ? String.valueOf(body.get("name")) : "";
+            if (cache != null) {
+                cache.caseNames.put(testCaseKey, name);
+            }
+            return name;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private List<TestCycle> cachedProjectCycles(String projectKey) {
+        BulkLookupCache cache = bulkLookup.get();
+        if (cache != null) {
+            if (cache.projectCycles == null) {
+                cache.projectCycles = listScaleCloudTestCycles(projectKey);
+            }
+            return cache.projectCycles;
+        }
+        return listScaleCloudTestCycles(projectKey);
+    }
+
+    private String cycleKey(TestCycle cycle) {
+        if (cycle.getKey() != null && !cycle.getKey().isBlank()) {
+            return cycle.getKey();
+        }
+        return cycle.getId() == null ? "" : cycle.getId();
+    }
+
+    private List<LinkedTestCaseRef> copyRefs(List<LinkedTestCaseRef> source) {
+        List<LinkedTestCaseRef> copy = new ArrayList<>();
+        for (LinkedTestCaseRef item : source) {
+            LinkedTestCaseRef ref = new LinkedTestCaseRef();
+            ref.setKey(item.getKey());
+            ref.setName(item.getName());
+            ref.setUrl(item.getUrl());
+            ref.setStatus(item.getStatus());
+            ref.setInCycle(item.isInCycle());
+            copy.add(ref);
+        }
+        return copy;
+    }
+
+    private String firstNonBlank(Object... values) {
+        for (Object value : values) {
+            if (value != null && !String.valueOf(value).isBlank()) {
+                return String.valueOf(value);
+            }
+        }
+        return "";
+    }
+
+    private static final class BulkLookupCache {
+        private final Map<String, List<Map<String, Object>>> issueLinks = new HashMap<>();
+        private final Map<String, Boolean> issueLinkAvailable = new HashMap<>();
+        private final Map<String, List<LinkedTestCaseRef>> casesByIssueId = new HashMap<>();
+        private final Map<String, String> caseNames = new HashMap<>();
+        private final Map<String, List<TestExecutionRef>> executionsByTestCase = new HashMap<>();
+        private List<TestCycle> projectCycles;
+        private boolean crawlBuilt;
     }
 
     @SuppressWarnings("unchecked")
@@ -2959,19 +3304,71 @@ public class ZephyrClient {
     }
 
     /** List test executions attached to a Scale Cloud cycle. */
-    @SuppressWarnings("unchecked")
     public List<TestExecutionRef> getScaleCloudExecutionsForCycle(String cycleKey) {
-        List<TestExecutionRef> executions = new ArrayList<>();
-        if (cycleKey == null || cycleKey.isBlank()) {
-            return executions;
-        }
+        return getScaleCloudExecutionsForCycle(cycleKey, null);
+    }
 
+    public List<TestExecutionRef> getScaleCloudExecutionsForCycle(String cycleKey, String cycleId) {
+        String key = firstNonBlank(cycleKey, cycleId);
+        if (key.isBlank()) {
+            return new ArrayList<>();
+        }
+        String projectKey = projectKeyFromIssue(key);
+        List<TestExecutionRef> executions = fetchScaleCloudExecutions(
+                executionFilterQuery(projectKey, "testCycle", key) + "&onlyLastExecutions=true"
+        );
+        if (executions.isEmpty() && cycleId != null && !cycleId.isBlank() && !cycleId.equals(key)) {
+            executions = fetchScaleCloudExecutions(
+                    executionFilterQuery(projectKey, "testCycle", cycleId) + "&onlyLastExecutions=true"
+            );
+        }
+        if (executions.isEmpty()) {
+            executions = fetchScaleCloudExecutions(executionFilterQuery(projectKey, "testCycle", key));
+        }
+        return executions;
+    }
+
+    public List<TestExecutionRef> getScaleCloudExecutionsForTestCase(String testCaseKey) {
+        if (testCaseKey == null || testCaseKey.isBlank()) {
+            return new ArrayList<>();
+        }
+        BulkLookupCache cache = bulkLookup.get();
+        String cacheKey = testCaseKey.toUpperCase(Locale.ROOT);
+        if (cache != null && cache.executionsByTestCase.containsKey(cacheKey)) {
+            return cache.executionsByTestCase.get(cacheKey);
+        }
+        String projectKey = projectKeyFromIssue(testCaseKey);
+        List<TestExecutionRef> executions = fetchScaleCloudExecutions(
+                executionFilterQuery(projectKey, "testCase", testCaseKey) + "&onlyLastExecutions=true"
+        );
+        if (executions.isEmpty()) {
+            executions = fetchScaleCloudExecutions(
+                    executionFilterQuery(projectKey, "testCase", testCaseKey)
+            );
+        }
+        if (cache != null) {
+            cache.executionsByTestCase.put(cacheKey, executions);
+        }
+        return executions;
+    }
+
+    private String executionFilterQuery(String projectKey, String filterName, String filterValue) {
+        String query = filterName + "=" + encodeScaleQuery(filterValue);
+        if (projectKey != null && !projectKey.isBlank()) {
+            query = "projectKey=" + encodeScaleQuery(projectKey) + "&" + query;
+        }
+        return query;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<TestExecutionRef> fetchScaleCloudExecutions(String query) {
+        List<TestExecutionRef> executions = new ArrayList<>();
         int startAt = 0;
         int maxResults = 100;
         while (true) {
             String url = scaleCloudBaseUrl()
-                    + "/testexecutions?testCycle="
-                    + cycleKey
+                    + "/testexecutions?"
+                    + query
                     + "&maxResults="
                     + maxResults
                     + "&startAt="
@@ -2995,20 +3392,8 @@ public class ZephyrClient {
                         if (!(item instanceof Map<?, ?> map)) {
                             continue;
                         }
-                        TestExecutionRef execution = new TestExecutionRef();
-                        execution.setTestCaseKey(
-                                map.get("testCaseKey") != null
-                                        ? String.valueOf(map.get("testCaseKey"))
-                                        : ""
-                        );
-                        Object status = map.get("status");
-                        if (status instanceof Map<?, ?> statusMap && statusMap.get("name") != null) {
-                            execution.setStatus(String.valueOf(statusMap.get("name")));
-                        } else if (map.get("statusName") != null) {
-                            execution.setStatus(String.valueOf(map.get("statusName")));
-                        }
-                        if (!execution.getTestCaseKey().isBlank()) {
-                            execution.setUrl(buildScaleCloudTestCaseUrl(execution.getTestCaseKey()));
+                        TestExecutionRef execution = parseScaleCloudExecution(map);
+                        if (execution != null) {
                             executions.add(execution);
                         }
                     }
@@ -3021,13 +3406,108 @@ public class ZephyrClient {
                     break;
                 }
             } catch (Exception e) {
-                System.err.println(
-                        "Failed to fetch executions for cycle "
-                                + cycleKey
-                                + ": "
-                                + e.getMessage()
-                );
+                System.err.println("Failed to fetch Scale executions (" + query + "): " + e.getMessage());
                 break;
+            }
+        }
+        return executions;
+    }
+
+    private TestExecutionRef parseScaleCloudExecution(Map<?, ?> map) {
+        String testCaseKey = scaleCloudExecutionTestCaseKey(map);
+        if (testCaseKey.isBlank()) {
+            return null;
+        }
+        TestExecutionRef execution = new TestExecutionRef();
+        execution.setTestCaseKey(testCaseKey);
+        execution.setTestCaseName(scaleCloudExecutionTestCaseName(map));
+        if (execution.getTestCaseName() == null || execution.getTestCaseName().isBlank()) {
+            execution.setTestCaseName(lookupScaleCloudTestCaseName(testCaseKey));
+        }
+        Object status = map.get("status");
+        if (status instanceof Map<?, ?> statusMap) {
+            execution.setStatus(firstNonBlank(statusMap.get("name"), statusMap.get("i18nKey")));
+        } else {
+            execution.setStatus(firstNonBlank(map.get("statusName"), status));
+        }
+        if (execution.getStatus() == null || execution.getStatus().isBlank()) {
+            execution.setStatus("Not Executed");
+        }
+        execution.setUrl(buildScaleCloudTestCaseUrl(testCaseKey));
+        return execution;
+    }
+
+    private String encodeScaleQuery(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private String scaleCloudExecutionTestCaseKey(Map<?, ?> map) {
+        String direct = firstNonBlank(map.get("testCaseKey"));
+        if (!direct.isBlank()) {
+            return direct;
+        }
+        Object nested = map.get("testCase");
+        if (nested instanceof String text) {
+            return firstNonBlank(text, keyFromScaleSelf(text, "testcases"));
+        }
+        if (nested instanceof Map<?, ?> testCase) {
+            return firstNonBlank(
+                    testCase.get("key"),
+                    testCase.get("testCaseKey"),
+                    keyFromScaleSelf(testCase.get("self"), "testcases")
+            );
+        }
+        return keyFromScaleSelf(map.get("self"), "testcases");
+    }
+
+    private String scaleCloudExecutionTestCaseName(Map<?, ?> map) {
+        String direct = firstNonBlank(map.get("testCaseName"), map.get("name"));
+        if (!direct.isBlank()) {
+            return direct;
+        }
+        Object nested = map.get("testCase");
+        if (nested instanceof Map<?, ?> testCase) {
+            return firstNonBlank(testCase.get("name"));
+        }
+        return "";
+    }
+
+    private String keyFromScaleSelf(Object self, String resource) {
+        if (self == null) {
+            return "";
+        }
+        if (self instanceof Map<?, ?> map) {
+            return keyFromScaleSelf(
+                    firstNonBlank(map.get("href"), map.get("self"), map.get("url")),
+                    resource
+            );
+        }
+        String value = String.valueOf(self);
+        String marker = "/" + resource + "/";
+        int index = value.toLowerCase(Locale.ROOT).indexOf(marker);
+        if (index < 0) {
+            return "";
+        }
+        String rest = value.substring(index + marker.length());
+        int slash = rest.indexOf('/');
+        String key = slash < 0 ? rest : rest.substring(0, slash);
+        int query = key.indexOf('?');
+        if (query >= 0) {
+            key = key.substring(0, query);
+        }
+        return key;
+    }
+
+    public List<TestExecutionRef> getScaleCloudExecutionsLinkedToIssue(String issueKey) {
+        List<TestExecutionRef> executions = new ArrayList<>();
+        List<Map<String, Object>> items = listIssueLinkResources(issueKey, "executions");
+        if (items == null) {
+            return executions;
+        }
+        for (Map<String, Object> item : items) {
+            TestExecutionRef execution = parseScaleCloudExecution(item);
+            if (execution != null) {
+                executions.add(execution);
             }
         }
         return executions;
@@ -3040,13 +3520,7 @@ public class ZephyrClient {
         }
 
         if (isScaleCloudMode()) {
-            for (String key : getScaleCloudTestCaseKeysLinkedToIssue(issueKey)) {
-                LinkedTestCaseRef ref = new LinkedTestCaseRef();
-                ref.setKey(key);
-                ref.setUrl(buildScaleCloudTestCaseUrl(key));
-                refs.add(ref);
-            }
-            return refs;
+            return getScaleCloudTestCasesLinkedToIssue(issueKey);
         }
 
         try {

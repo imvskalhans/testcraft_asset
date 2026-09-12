@@ -656,6 +656,51 @@ public class JiraClient {
     }
 
     @SuppressWarnings("unchecked")
+    public List<LinkedStory> fetchChildWorkItems(String issueKey) {
+        List<LinkedStory> children = new ArrayList<>();
+        if (issueKey == null || issueKey.isBlank()) {
+            return children;
+        }
+        String key = issueKey.trim().toUpperCase();
+        String url = jiraProperties.getBaseUrl().replaceAll("/$", "") + jiraProperties.getApiPath()
+                + "/issue/" + key + "?fields=subtasks";
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authHeaders()), Map.class);
+            Map<String, Object> body = response.getBody();
+            if (body == null || !(body.get("fields") instanceof Map<?, ?> fields)) {
+                return children;
+            }
+            Object subtasks = ((Map<String, Object>) fields).get("subtasks");
+            if (!(subtasks instanceof List<?> list)) {
+                return children;
+            }
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> map)) {
+                    continue;
+                }
+                LinkedStory child = new LinkedStory();
+                child.setKey(map.get("key") != null ? String.valueOf(map.get("key")) : "");
+                child.setId(map.get("id") != null ? String.valueOf(map.get("id")) : child.getKey());
+                Object nestedFields = map.get("fields");
+                if (nestedFields instanceof Map<?, ?> childFields) {
+                    Map<String, Object> cf = (Map<String, Object>) childFields;
+                    child.setSummary(cf.get("summary") != null ? String.valueOf(cf.get("summary")) : "");
+                    child.setStatus(nestedName(cf, "status"));
+                    child.setIssueType(nestedName(cf, "issuetype"));
+                    child.setPriority(nestedName(cf, "priority"));
+                }
+                if (child.getKey() != null && !child.getKey().isBlank()) {
+                    children.add(child);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to fetch sub-tasks for " + key + ": " + e.getMessage());
+        }
+        return children;
+    }
+
+    @SuppressWarnings("unchecked")
     private List<JiraStory.Comment> extractComments(
             Map<String, Object> commentData
     ) {

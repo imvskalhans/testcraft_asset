@@ -11,6 +11,10 @@ public class CycleTraceability {
     private String status;
     private String url;
     private int executionCount;
+    private int passedCount;
+    private int failedCount;
+    private int blockedCount;
+    private int notExecutedCount;
     private List<TestExecutionRef> executions = new ArrayList<>();
 
     public String getId() {
@@ -60,6 +64,15 @@ public class CycleTraceability {
     public void setExecutionCount(int executionCount) {
         this.executionCount = executionCount;
     }
+
+    public int getPassedCount() { return passedCount; }
+    public void setPassedCount(int passedCount) { this.passedCount = passedCount; }
+    public int getFailedCount() { return failedCount; }
+    public void setFailedCount(int failedCount) { this.failedCount = failedCount; }
+    public int getBlockedCount() { return blockedCount; }
+    public void setBlockedCount(int blockedCount) { this.blockedCount = blockedCount; }
+    public int getNotExecutedCount() { return notExecutedCount; }
+    public void setNotExecutedCount(int notExecutedCount) { this.notExecutedCount = notExecutedCount; }
 
     public List<TestExecutionRef> getExecutions() {
         return executions;

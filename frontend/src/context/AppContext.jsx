@@ -53,6 +53,8 @@ function mergePublishItems(existingItems, nextItems) {
 
 export function AppProvider({ children }) {
   const [page, setPage] = useState("home");
+  const [pendingAiAction, setPendingAiAction] = useState("");
+  const [activeAiAction, setActiveAiAction] = useState("");
   const [issueKey, setIssueKey] = useState("KAN-1");
   const [story, setStory] = useState(null);
   const [storyText, setStoryText] = useState("");
@@ -77,6 +79,7 @@ export function AppProvider({ children }) {
   const [appStats, setAppStats] = useState(() => loadAppStats());
   const [publishing, setPublishing] = useState(false);
   const [publishProgress, setPublishProgress] = useState(null);
+  const [busyJob, setBusyJob] = useState(null);
 
   const [projects, setProjects] = useState({});
   const [folders, setFolders] = useState({});
@@ -169,15 +172,36 @@ export function AppProvider({ children }) {
 
   const clearMsg = () => { setError(null); setSuccess(null); };
 
-  const navigate = (id) => {
+  const navigate = (id, options = {}) => {
     if (id === "publish" && !testCases.length) {
       setPage("generate");
       setError("Generate or import test cases before opening Publish & Link.");
       setSuccess(null);
       return;
     }
+    if (options.aiAction) {
+      setPendingAiAction(options.aiAction);
+      setActiveAiAction(options.aiAction);
+    } else if (id === "ai") {
+      setActiveAiAction("");
+      setPendingAiAction("");
+    }
     setPage(id);
     clearMsg();
+  };
+
+  const openFromTraceability = ({ page: nextPage, key, aiAction, additionalPrompt: extraPrompt }) => {
+    if (key) {
+      setIssueKey(key);
+      if (nextPage === "release") setCrKey(key);
+    }
+    if (aiAction) {
+      if (extraPrompt) setAdditionalPrompt(extraPrompt);
+      navigate(nextPage, { aiAction });
+      return;
+    }
+    if (extraPrompt) setAdditionalPrompt(extraPrompt);
+    navigate(nextPage);
   };
 
   const updateTestCase = (index, field, value) => {
@@ -211,9 +235,18 @@ export function AppProvider({ children }) {
     setExpandedCase((current) => (current >= index && current > 0 ? current - 1 : current));
   };
 
-  const run = useCallback(async (fn, onError) => {
+  const beginBusyJob = useCallback((job) => {
+    setBusyJob(job);
+  }, []);
+
+  const endBusyJob = useCallback((id) => {
+    setBusyJob((current) => (current && current.id === id ? null : current));
+  }, []);
+
+  const run = useCallback(async (fn, onError, job) => {
     clearMsg();
     setLoading(true);
+    if (job) setBusyJob(job);
     try {
       await fn();
     } catch (e) {
@@ -221,6 +254,9 @@ export function AppProvider({ children }) {
       if (onError) onError(e);
     } finally {
       setLoading(false);
+      if (job) {
+        setBusyJob((current) => (current && current.id === job.id ? null : current));
+      }
     }
   }, []);
 
@@ -300,7 +336,7 @@ export function AppProvider({ children }) {
     } catch { /* The normal configured project remains selected. */ }
     trackStat("story-fetched", { label: `Fetched ${issueKey}`, issueKey });
     setSuccess(`Fetched ${issueKey}`);
-  });
+  }, undefined, { id: "fetch-story", title: "Fetching Jira issue", page: "story", exclusiveAi: false });
 
   const fetchForAi = () => run(async () => {
     const data = await api.jira.fetchIssue(issueKey);
@@ -318,25 +354,25 @@ export function AppProvider({ children }) {
       setSelectedProject(project.id);
     } catch { /* The normal configured project remains selected. */ }
     setSuccess(`Fetched Jira details for ${issueKey}`);
-  });
+  }, undefined, { id: "fetch-ai", title: "Fetching Jira details", page: "ai", exclusiveAi: false });
 
   const fetchCrForAi = () => run(async () => {
     const cr = await api.release.fetchCr(crKey);
     setRelease(cr);
     setSuccess(`Fetched change request ${crKey}`);
-  });
+  }, undefined, { id: "fetch-cr", title: "Fetching change request", page: "ai", exclusiveAi: false });
 
   const postComment = () => run(async () => {
     await api.jira.comment(issueKey, comment);
     setSuccess("Comment posted to Jira");
     setComment("");
-  });
+  }, undefined, { id: "post-comment", title: "Posting Jira comment", page: "story", exclusiveAi: false });
 
   const postAiComment = (commentText, targetKey = issueKey) => run(async () => {
     const key = (targetKey || issueKey).trim();
     await api.jira.comment(key, commentText);
     setSuccess(`AI result posted as a Jira comment on ${key}`);
-  });
+  }, undefined, { id: "post-ai-comment", title: "Posting Jira comment", page: "ai", exclusiveAi: false });
 
   const doGenerate = (userAttachments = []) => run(async () => {
     const count = Math.max(1, Number(testCount) || 1);
@@ -365,7 +401,7 @@ export function AppProvider({ children }) {
       issueKey,
     });
     setSuccess(`Generated ${generatedCount} ${testType} test case(s). Edit any field before publishing.`);
-  });
+  }, undefined, { id: "generate", title: "Generating test cases with AI", page: "generate", exclusiveAi: true });
 
   const publishCasesAtIndices = useCallback(async (indices) => {
     if (!indices.length) return;
@@ -373,9 +409,11 @@ export function AppProvider({ children }) {
     if (!selectedFolder) throw new Error("Select a folder");
 
     setPublishing(true);
+    setBusyJob({ id: "publish", title: "Publishing test cases to Zephyr", page: "publish", exclusiveAi: false });
     setPublishMessage(null);
     clearMsg();
 
+    try {
     setPublishProgress((current) => {
       const existing = new Map((current?.items ?? []).map((item) => [item.index, item]));
       const items = indices.map((index) => {
@@ -478,8 +516,10 @@ export function AppProvider({ children }) {
       });
       setSuccess(`Published ${successCount} test case(s): ${published.join(", ")}. Link them to stories next.`);
     }
-
-    setPublishing(false);
+    } finally {
+      setPublishing(false);
+      setBusyJob((current) => (current && current.id === "publish" ? null : current));
+    }
   }, [
     issueKey,
     owner,
@@ -533,7 +573,7 @@ export function AppProvider({ children }) {
       issueKey,
     });
     setSuccess(`Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.`);
-  }, (e) => setLinkMessage({ type: "error", text: e.message }));
+  }, (e) => setLinkMessage({ type: "error", text: e.message }), { id: "link-published", title: "Linking test cases to Jira", page: "publish", exclusiveAi: false });
 
   const fetchCycles = () => run(async () => {
     // A new fetch starts a new cycle workflow. Do not leave results or
@@ -551,7 +591,7 @@ export function AppProvider({ children }) {
     const stories = (cr.linkedStories ?? []).map((s) => s.key).filter(Boolean);
     setCycleLinkKeys([crKey, ...stories].filter(Boolean).join(", "));
     setSuccess(cycles.message ?? `Fetched test cycles for ${crKey}`);
-  });
+  }, undefined, { id: "fetch-cycles", title: "Checking Zephyr test cycles", page: "release", exclusiveAi: false });
 
   const createCycles = () => run(async () => {
     setCycleCreateMessage(null);
@@ -567,7 +607,7 @@ export function AppProvider({ children }) {
         issueKey: crKey,
       });
     }
-  }, (e) => setCycleCreateMessage({ type: "error", text: e.message }));
+  }, (e) => setCycleCreateMessage({ type: "error", text: e.message }), { id: "create-cycles", title: "Creating Zephyr test cycles", page: "release", exclusiveAi: false });
 
   const linkCycles = () => run(async () => {
     setCycleLinkMessage(null);
@@ -595,7 +635,7 @@ export function AppProvider({ children }) {
     if (res.errors?.length && !res.linked?.length) throw new Error(res.errors.join("; "));
     if (res.errors?.length) setCycleLinkMessage({ type: "error", text: `Some links need attention: ${res.errors.join("; ")}` });
     else setCycleLinkMessage({ type: "success", text: `Linked ${res.linked?.length ?? 0} new link(s); ${res.alreadyLinked?.length ?? 0} were already linked.` });
-  }, (e) => setCycleLinkMessage({ type: "error", text: e.message }));
+  }, (e) => setCycleLinkMessage({ type: "error", text: e.message }), { id: "link-cycles", title: "Linking cycles to Jira", page: "release", exclusiveAi: false });
 
   const releaseAiRun = (actionId) => run(async () => {
     if (actionId === "story-review") {
@@ -609,7 +649,7 @@ export function AppProvider({ children }) {
     setReleaseAi(data);
     trackStat("ai-run", { label: "Release AI analysis", issueKey: crKey || issueKey });
     setSuccess(data.mockMode ? "Release AI (mock mode)" : "Release analysis complete");
-  });
+  }, undefined, { id: "release-ai", title: "Running release AI analysis", page: "release", exclusiveAi: true });
 
   const testConnections = () => run(async () => {
     const [jira, user] = await Promise.all([
@@ -618,7 +658,7 @@ export function AppProvider({ children }) {
     ]);
     setConnStatus({ jira, user });
     setSuccess("Connection check complete");
-  });
+  }, undefined, { id: "test-connections", title: "Checking connections", page: "settings", exclusiveAi: false });
 
   const toggleCycleType = (type) => {
     setCycleTypes((current) => (
@@ -627,10 +667,12 @@ export function AppProvider({ children }) {
   };
 
   const value = {
-    page, navigate,
+    page, navigate, openFromTraceability,
+    pendingAiAction, setPendingAiAction,
+    activeAiAction, setActiveAiAction,
     issueKey, setIssueKey,
     story, storyText,
-    loading, error, success,
+    loading, error, success, busyJob, beginBusyJob, endBusyJob,
     publishMessage, linkMessage,
     review, releaseAi, aiActions,
     testCases, expandedCase, setExpandedCase,
