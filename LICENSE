@@ -1,0 +1,38 @@
+Copyright (c) 2026 Vishal Singh
+All rights reserved.
+
+Project: TestCraft
+Repository: https://github.com/imvskalhans/testcraft_asset
+
+This source code, documentation, configuration examples, designs, prompts,
+and all other contents of this repository (the "Software") are the
+exclusive property of Vishal Singh.
+
+The Software is published for viewing and evaluation only, including
+portfolio, demonstration, and educational review of TestCraft.
+
+No license is granted. Without prior written permission from the copyright
+holder, you may not:
+
+- copy, clone, fork, download, or reproduce the Software except as GitHub
+  incidentally allows when a repository is public
+- modify the Software or create derivative works
+- distribute, publish, sublicense, or share the Software
+- use the Software, in whole or in part, for any personal, internal,
+  commercial, or production purpose
+- train models on the Software or extract prompts, workflows, or designs
+  for reuse in another product
+
+Public availability on GitHub does not waive these restrictions. Access to
+a public repository is not permission to reuse the work.
+
+To request written permission, contact Vishal Singh via the GitHub account
+that owns this repository.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

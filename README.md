@@ -247,3 +247,11 @@ Render can deploy private repositories, but its GitHub App must have access to t
 If the repository belongs to an organization, an organization owner may need to approve the Render GitHub App. If the repository was renamed or transferred, remove the old Render connection and install the GitHub App again for the new owner.
 
 Do not make the repository public as a workaround. This project previously contained local configuration files, so all Jira, Zephyr, and AI credentials must be rotated before deployment and the private files must remain outside Git.
+
+## License
+
+Copyright (c) 2026 Vishal Singh. All rights reserved.
+
+TestCraft is provided for viewing and evaluation only. You do not have permission to copy, modify, distribute, or use this software without prior written permission. See [LICENSE](LICENSE) for the full terms.
+
+This is not an open-source license. MIT, Apache 2.0, GPL, and similar licenses are not used.

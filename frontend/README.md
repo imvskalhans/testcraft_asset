@@ -37,3 +37,7 @@ src/
 ├── styles/        # Shared form styles
 └── utils/         # Pure helpers
 ```
+
+## License
+
+Copyright (c) 2026 Vishal Singh. All rights reserved. See [../LICENSE](../LICENSE).

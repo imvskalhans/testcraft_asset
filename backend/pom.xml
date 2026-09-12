@@ -17,6 +17,15 @@
     <name>TestCraft Backend</name>
     <description>QA tool — Jira, Zephyr, and AI integrations</description>
 
+    <licenses>
+        <license>
+            <name>Proprietary — All Rights Reserved</name>
+            <url>https://github.com/imvskalhans/testcraft_asset/blob/main/LICENSE</url>
+            <distribution>manual</distribution>
+            <comments>Viewing and evaluation only. No copy, modification, distribution, or use without written permission from Vishal Singh.</comments>
+        </license>
+    </licenses>
+
     <properties>
         <java.version>17</java.version>
     </properties>

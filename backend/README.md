@@ -38,3 +38,7 @@ API: http://localhost:8080
 | `GET /api/config/me` | Current Jira user |
 
 See parent [../config/SETUP.md](../config/SETUP.md) for full setup guide.
+
+## License
+
+Copyright (c) 2026 Vishal Singh. All rights reserved. See [../LICENSE](../LICENSE).
