@@ -1,7 +1,10 @@
 package com.acc.testcraft_backend.client;
 
 import com.acc.testcraft_backend.model.AiAttachment;
+
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Provider-independent AI client interface.
@@ -32,4 +35,29 @@ public interface AiClient {
 
     /** Provider identifier, e.g. "gemini", "openai", "azure-gateway", "groq", "mock". */
     String getProvider();
+
+    /**
+     * Live health check used by Settings. Implementations must never return secrets.
+     * Always returns a map with {@code success}, {@code provider}, and {@code message}.
+     */
+    default Map<String, Object> testConnection() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("provider", getProvider());
+        result.put("configured", isConfigured());
+        result.put("mockMode", isMockMode());
+        if (isMockMode()) {
+            result.put("success", true);
+            result.put("message", "Mock AI mode is active. Live generation is not used.");
+            return result;
+        }
+        try {
+            generate("Reply with the single word OK.");
+            result.put("success", true);
+            result.put("message", getProvider() + " responded successfully.");
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", e.getMessage() == null ? "AI request failed" : e.getMessage());
+        }
+        return result;
+    }
 }

@@ -109,7 +109,7 @@ export default function SettingsPage() {
             ? `✓ ${configStatus.zephyr.defaultProjectKey} (${configStatus.zephyr.defaultProjectId || "project ID missing"})`
             : "○ Set the default project key and numeric project ID"}</div>
           <div><strong>Folders:</strong> Select a project on Publish & Link and confirm folders load before publishing.</div>
-          <div><strong>AI:</strong> {configStatus?.ai?.mockMode ? "Using mock mode — configure an AI provider for live generation" : `Ready for test generation (${configStatus?.ai?.provider || "provider"}${configStatus?.ai?.imageInputSupported ? "; image input supported" : "; image input unavailable"})`}</div>
+          <div><strong>AI:</strong> {configStatus?.ai?.mockMode ? "Using mock mode — configure an AI provider for live generation" : `Ready for test generation (${configStatus?.ai?.provider || "provider"}${configStatus?.ai?.model ? ` · ${configStatus.ai.model}` : ""}${configStatus?.ai?.imageInputSupported ? "; image input supported" : "; image input unavailable"}). Use Test connections to ping the live model.`}</div>
         </div>
         <p style={{ color: colors.muted, fontSize: 11, lineHeight: 1.5, margin: "10px 0 0" }}>
           This page intentionally shows connection state, URLs, project IDs, and account IDs only. Secrets are used by the backend and are never rendered in the UI.
@@ -120,14 +120,19 @@ export default function SettingsPage() {
           <div style={{ fontSize: 12, lineHeight: 1.7, marginBottom: 12 }}>
             <p><strong>Jira:</strong> {configStatus.jira?.connected ? "connected" : "not connected"} · {configStatus.jira?.baseUrl} · {configStatus.jira?.username}</p>
             <p><strong>Zephyr:</strong> {configStatus.zephyr?.provider} · project {configStatus.zephyr?.defaultProjectKey || "—"} · Scale JWT {configStatus.zephyr?.scaleCloudTokenConfigured ? "configured" : "missing"}</p>
-            <p><strong>AI:</strong> {configStatus.ai?.provider}{configStatus.ai?.mockMode ? " (mock mode)" : ""}</p>
+            <p><strong>AI:</strong> {configStatus.ai?.provider}{configStatus.ai?.mockMode ? " (mock mode)" : ""}{configStatus.ai?.model ? ` · ${configStatus.ai.model}` : ""}</p>
           </div>
         )}
         <Button primary disabled={loading} onClick={testConnections}>Test connections</Button>
         {connStatus && (
-          <div style={{ marginTop: 12, fontSize: 12 }}>
-            <p><strong>Jira:</strong> {typeof connStatus.jira === "string" ? connStatus.jira : "OK"}</p>
-            <p><strong>User:</strong> {connStatus.user?.displayName} — {connStatus.user?.email}</p>
+          <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.7 }}>
+            <p><strong>Jira:</strong> {typeof connStatus.jira === "string" ? connStatus.jira : (connStatus.jira ? "OK" : "failed")}</p>
+            <p><strong>Zephyr:</strong> {connStatus.user?.error
+              ? connStatus.user.error
+              : (connStatus.user?.displayName
+                ? `${connStatus.user.displayName} — ${connStatus.user.email || ""}`
+                : "failed")}</p>
+            <p><strong>AI:</strong> {connStatus.ai?.success ? "OK" : "failed"}{connStatus.ai?.model ? ` · ${connStatus.ai.model}` : ""}{connStatus.ai?.message ? ` — ${connStatus.ai.message}` : ""}</p>
           </div>
         )}
       </Card>

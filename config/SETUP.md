@@ -56,7 +56,7 @@ zephyr.known-folders=Test Folder:123456,Demo Folder:123457
 ```properties
 ai.provider=gemini        # mock | gemini | groq | openai | azure-gateway
 ai.gemini.api-key=...
-ai.gemini.model=gemini-3.7-flash
+ai.gemini.model=gemini-2.5-flash   # avoid preview models; they often return HTTP 503 under load
 ai.openai.api-key=...
 ai.openai.model=gpt-4o-mini
 ```

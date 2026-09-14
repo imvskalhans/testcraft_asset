@@ -277,7 +277,7 @@ public class AiProperties {
     public static class Gemini {
         private String baseUrl = "https://generativelanguage.googleapis.com/v1beta";
         private String apiKey = "";
-        private String model = "gemini-3-flash-preview";
+        private String model = "gemini-2.5-flash";
         private int maxTokens = 4096;
 
         public boolean isConfigured() { return apiKey != null && !apiKey.isBlank(); }

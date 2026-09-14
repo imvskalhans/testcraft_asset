@@ -652,11 +652,12 @@ export function AppProvider({ children }) {
   }, undefined, { id: "release-ai", title: "Running release AI analysis", page: "release", exclusiveAi: true });
 
   const testConnections = () => run(async () => {
-    const [jira, user] = await Promise.all([
+    const [jira, user, ai] = await Promise.all([
       api.jira.test().catch((e) => e.message),
       api.zephyr.validateUser().catch((e) => ({ error: e.message })),
+      api.config.aiTest().catch((e) => ({ success: false, message: e.message })),
     ]);
-    setConnStatus({ jira, user });
+    setConnStatus({ jira, user, ai });
     setSuccess("Connection check complete");
   }, undefined, { id: "test-connections", title: "Checking connections", page: "settings", exclusiveAi: false });
 

@@ -34,6 +34,7 @@ API: http://localhost:8080
 | Endpoint | Description |
 |----------|-------------|
 | `GET /api/config/status` | Non-secret config status |
+| `GET /api/config/ai-test` | Live AI ping (no secrets) |
 | `GET /api/config/setup-guide` | Setup steps for UI |
 | `GET /api/config/me` | Current Jira user |
 

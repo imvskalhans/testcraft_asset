@@ -83,6 +83,13 @@ public class ConfigController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/ai-test")
+    public ResponseEntity<Map<String, Object>> aiTest() {
+        Map<String, Object> result = new LinkedHashMap<>(aiClient.testConnection());
+        result.putIfAbsent("success", false);
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/setup-guide")
     public ResponseEntity<Map<String, Object>> setupGuide() {
         try (InputStream in = new ClassPathResource("setup-guide.json").getInputStream()) {
@@ -155,9 +162,26 @@ public class ConfigController {
         status.put("provider", ai.getProvider());
         status.put("mockMode", aiClient.isMockMode());
         status.put("configured", aiClient.isConfigured());
+        status.put("model", configuredAiModel());
         status.put("imageInputSupported", aiClient.supportsImageInput());
         status.put("textAttachmentSupported", true);
         return status;
+    }
+
+    private String configuredAiModel() {
+        if (ai.isGemini()) {
+            return ai.getGemini().getModel();
+        }
+        if (ai.isOpenAi()) {
+            return ai.getOpenai().getModel();
+        }
+        if (ai.isGroq()) {
+            return ai.getGroq().getModel();
+        }
+        if (ai.isAzureGateway()) {
+            return ai.getAzure().getDeploymentId();
+        }
+        return "";
     }
 
     private static String maskUrl(String url) {
